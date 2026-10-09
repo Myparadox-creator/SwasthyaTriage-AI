@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [tool.vercel]
-entrypoint = "backend.main:app"
+entrypoint = "server:app"
 
 [tool.vercel.scripts]
 build = "python build_frontend.py"
