@@ -1,0 +1,29 @@
+[project]
+name = "swasthyatriage-ai"
+version = "0.1.0"
+description = "Multimodal AI-assisted triage support (SwasthyaTriage AI). Serves the FastAPI backend and the built SPA from a single Vercel Function."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14.0",
+    "psycopg[binary]>=3.2.3",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "email-validator>=2.2.0",
+    "argon2-cffi>=23.1.0",
+    "PyJWT>=2.10.0",
+    "python-multipart>=0.0.18",
+    "httpx>=0.28.0",
+    "google-genai>=1.16.0",
+    "openpyxl>=3.1.5",
+    "pypdf>=5.1.0",
+    "slowapi>=0.1.9",
+    "python-dateutil>=2.9.0",
+]
+
+[tool.vercel]
+entrypoint = "backend.main:app"
+
+[tool.vercel.scripts]
+build = "python build_frontend.py"

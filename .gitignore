@@ -30,3 +30,6 @@ backend/storage/exports/*
 
 # Logs
 *.log
+
+# Vercel
+.vercel/

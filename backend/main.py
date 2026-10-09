@@ -7,9 +7,11 @@ This API is non-diagnostic and reviewer-facing by design.
 import logging
 import uuid
 from collections.abc import Callable
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 
@@ -142,3 +144,26 @@ def health() -> dict:
             "email": settings.email_delivery_mode if settings.brevo_api_key else "not_configured",
         },
     }
+
+
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa_fallback(full_path: str):
+    """Serve the built SPA and its assets; keep unknown /api/* as JSON 404s.
+
+    Registered last so every API route above wins for /api/*.
+    """
+    if full_path.startswith("api/"):
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+    candidate = FRONTEND_DIST / full_path if full_path else FRONTEND_DIST / "index.html"
+    if candidate.is_file():
+        return FileResponse(candidate)
+
+    index = FRONTEND_DIST / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+
+    return JSONResponse(status_code=404, content={"detail": "Frontend not built"})
