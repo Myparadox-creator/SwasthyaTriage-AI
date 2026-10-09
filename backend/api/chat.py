@@ -51,7 +51,7 @@ class DoctorReplyRequest(BaseModel):
 
 def _can_converse(case: Case) -> None:
     """Validate whether intake conversation or voice session is permitted."""
-    if case.status in (CaseStatus.CLOSED, CaseStatus.REJECTED):
+    if case.status in (CaseStatus.CLOSED, CaseStatus.REFERRED):
         raise AppError(
             code="CASE_CLOSED",
             message=f"Case {case.case_number} is closed and cannot accept turns.",

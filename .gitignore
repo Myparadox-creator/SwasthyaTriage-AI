@@ -33,3 +33,5 @@ backend/storage/exports/*
 
 # Vercel
 .vercel/
+.vercel
+.env*
