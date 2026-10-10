@@ -225,7 +225,11 @@ export default function CommunicationCentre() {
   const user = useAuthStore((s) => s.user)!
   const { mode } = useNetworkStore()
 
-  const [conversations, setConversations] = useState<ConversationItem[]>(INITIAL_CONVERSATIONS)
+  const [conversations, setConversations] = useState<ConversationItem[]>(() =>
+    user.facility_id
+      ? INITIAL_CONVERSATIONS.map((c) => ({ ...c, facilityId: user.facility_id as number }))
+      : INITIAL_CONVERSATIONS
+  )
   const [activeConvId, setActiveConvId] = useState<string>(INITIAL_CONVERSATIONS[0].id)
   const [activeTab, setActiveTab] = useState<'ALL' | 'ASSIGNED' | 'CLARIFICATION' | 'HANDOFF'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')

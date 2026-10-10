@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from models.enums import CallStatus, MessageRole
@@ -58,7 +58,7 @@ class TeleCallOut(BaseModel):
     duration_seconds: int | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
-    extracted_data: dict[str, str] | None = None
+    extracted_data: dict[str, Any] | None = None
     error_detail: str | None = None
     transcripts: list[TranscriptOut] = Field(default_factory=list)
     created_at: datetime

@@ -48,6 +48,11 @@ def _telecall_or_403(db: Session, user: User, call_id: int | str) -> tuple[TeleC
 
 
 def _to_out(call: TeleCall, case: Case, patient: Patient | None) -> TeleCallOut:
+    extracted_data = {
+        key: value
+        for key, value in (call.extracted_data or {}).items()
+        if key != "vsdk_token"
+    }
     return TeleCallOut(
         id=call.id,
         public_id=call.public_id,
@@ -63,7 +68,7 @@ def _to_out(call: TeleCall, case: Case, patient: Patient | None) -> TeleCallOut:
         duration_seconds=call.duration_seconds,
         started_at=call.started_at,
         ended_at=call.ended_at,
-        extracted_data=call.extracted_data or {},
+        extracted_data=extracted_data,
         error_detail=call.error_detail,
         transcripts=[TranscriptOut.model_validate(t) for t in call.transcripts],
         created_at=call.created_at,

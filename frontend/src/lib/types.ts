@@ -380,7 +380,7 @@ export interface TeleCallOut {
   duration_seconds: number | null
   started_at: string | null
   ended_at: string | null
-  extracted_data: Record<string, string> | null
+  extracted_data: Record<string, string | number | boolean> | null
   error_detail: string | null
   transcripts: TranscriptOut[]
   created_at: string
