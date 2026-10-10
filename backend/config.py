@@ -48,15 +48,27 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_phone_number: str = ""
 
-    # Brevo Transactional Email System
-    brevo_api_key: str = ""
-    brevo_sender_email: str = "noreply@swasthyatriage.gov.in"
-    brevo_sender_name: str = "SwasthyaFlow AI"
-    brevo_reply_to_email: str = "support@swasthyatriage.gov.in"
+    # Transactional Email System
+    email_provider: str = "gmail"  # gmail | resend
     app_base_url: str = "http://localhost:5173"
     email_delivery_mode: str = "live"  # live | mock
     email_request_timeout_seconds: float = 10.0
-    brevo_webhook_secret: str = ""
+    email_reply_to: str = "support@swasthyatriage.gov.in"
+
+    # Gmail SMTP provider (works to any recipient without a verified domain)
+    gmail_smtp_user: str = ""
+    gmail_smtp_app_password: str = ""
+    gmail_sender_email: str = ""  # defaults to gmail_smtp_user
+    gmail_sender_name: str = "SwasthyaFlow AI"
+    gmail_smtp_host: str = "smtp.gmail.com"
+    gmail_smtp_port: int = 587
+
+    # Resend provider (requires a verified sender domain for real recipients)
+    resend_api_key: str = ""
+    resend_sender_email: str = "onboarding@resend.dev"
+    resend_sender_name: str = "SwasthyaFlow AI"
+    resend_reply_to_email: str = "support@swasthyatriage.gov.in"
+    resend_webhook_secret: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

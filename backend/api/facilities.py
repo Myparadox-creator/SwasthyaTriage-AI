@@ -209,12 +209,17 @@ async def search_facilities(
     limit: int = Query(30, description="Max facilities to return"),
 ) -> dict[str, Any]:
     """Search real healthcare facilities (clinics, hospitals, medicine stores)
-
     across all of India using live OpenStreetMap GIS data.
     """
-    resolved_lat = lat
-    resolved_lng = lng
-    resolved_location_name = query or "Selected Location"
+    query_val = query if isinstance(query, str) else None
+    lat_val = lat if isinstance(lat, (int, float)) else None
+    lng_val = lng if isinstance(lng, (int, float)) else None
+    category_val = category if isinstance(category, str) else "ALL"
+    limit_val = limit if isinstance(limit, int) else 30
+
+    resolved_lat = lat_val
+    resolved_lng = lng_val
+    resolved_location_name = query_val or "Selected Location"
 
     client = httpx.AsyncClient(
         headers={"User-Agent": "SwasthyaTriageAI-Healthcare-Network/1.0 (+https://swasthyatriage.gov.in)"},
@@ -223,11 +228,11 @@ async def search_facilities(
 
     try:
         # Step 1: Geocode if query is provided or lat/lng missing
-        if (query and not lat) or (query and lat is None):
+        if (query_val and not lat_val):
             geo_url = "https://nominatim.openstreetmap.org/search"
             geo_params = {
                 "format": "json",
-                "q": query,
+                "q": query_val,
                 "countrycodes": "in",
                 "limit": 1,
                 "addressdetails": 1,
@@ -241,6 +246,39 @@ async def search_facilities(
                     resolved_lng = float(match["lon"])
                     parts = match.get("display_name", "").split(",")
                     resolved_location_name = ", ".join(parts[:3]).strip()
+        elif (lat_val is not None and lng_val is not None) and not query_val:
+            # Reverse geocode user GPS coordinates to human-readable area & city name
+            resolved_lat = lat_val
+            resolved_lng = lng_val
+            try:
+                rev_resp = await client.get(
+                    "https://nominatim.openstreetmap.org/reverse",
+                    params={
+                        "format": "json",
+                        "lat": lat_val,
+                        "lon": lng_val,
+                        "zoom": 14,
+                        "addressdetails": 1,
+                    },
+                )
+                if rev_resp.status_code == 200:
+                    rev_data = rev_resp.json()
+                    addr = rev_data.get("address", {})
+                    area = (
+                        addr.get("suburb")
+                        or addr.get("neighbourhood")
+                        or addr.get("city")
+                        or addr.get("town")
+                        or addr.get("state_district")
+                    )
+                    state = addr.get("state")
+                    if area:
+                        resolved_location_name = f"{area}, {state}" if state and state != area else str(area)
+                    elif rev_data.get("display_name"):
+                        resolved_location_name = ", ".join(rev_data["display_name"].split(",")[:2]).strip()
+            except Exception as e:
+                logger.warning("Reverse geocoding failed: %s", e)
+                resolved_location_name = "Live Coordinates Area"
 
         # Fallback to default central coordinates if none provided
         if resolved_lat is None or resolved_lng is None:
@@ -252,7 +290,7 @@ async def search_facilities(
         facilities: list[dict[str, Any]] = []
 
         categories_to_fetch = []
-        cat_upper = category.upper()
+        cat_upper = category_val.upper()
         if cat_upper in ("ALL", "HOSPITAL"):
             categories_to_fetch.append(("hospital", "HOSPITAL"))
         if cat_upper in ("ALL", "CLINIC"):
@@ -268,12 +306,18 @@ async def search_facilities(
         for search_term, target_cat in categories_to_fetch:
             try:
                 osm_url = "https://nominatim.openstreetmap.org/search"
+                clean_area = resolved_location_name.split(",")[0].strip()
+                q_text = (
+                    f"{search_term} near {clean_area}"
+                    if clean_area and clean_area not in ("Selected Location", "Live Coordinates Area")
+                    else search_term
+                )
                 osm_params = {
                     "format": "json",
-                    "q": f"{search_term} near {resolved_location_name.split(',')[0]}",
+                    "q": q_text,
                     "viewbox": viewbox,
                     "bounded": 0,
-                    "limit": max(5, limit // len(categories_to_fetch)),
+                    "limit": max(5, limit_val // len(categories_to_fetch)),
                     "addressdetails": 1,
                     "extratags": 1,
                 }

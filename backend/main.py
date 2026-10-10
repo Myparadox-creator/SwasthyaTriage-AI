@@ -16,11 +16,14 @@ from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 
 from api.admin import router as admin_router
+from api.ai_clinical import router as ai_clinical_router
+from api.ai_evaluation import router as ai_evaluation_router
 from api.auth import router as auth_router
 from api.cases import router as cases_router
 from api.chat import router as chat_router
 from api.documents import router as documents_router
 from api.email_admin import router as email_admin_router
+from api.evidence import router as evidence_router
 from api.exports import router as exports_router
 from api.facilities import router as facilities_router
 from api.followups import router as followups_router
@@ -96,6 +99,7 @@ app.include_router(patients_router)
 app.include_router(cases_router)
 app.include_router(chat_router)
 app.include_router(documents_router)
+app.include_router(evidence_router)
 app.include_router(reviews_router)
 app.include_router(followups_router)
 app.include_router(referrals_router)
@@ -107,11 +111,14 @@ app.include_router(admin_router)
 app.include_router(notifications_router)
 app.include_router(facilities_router)
 app.include_router(email_admin_router)
+app.include_router(ai_clinical_router)
+app.include_router(ai_evaluation_router)
 
 
 @app.get("/api/health")
 def health() -> dict:
     from database.session import SessionLocal
+    from services.email import email_provider_info
     from services.gemini.base import provider_label
     from services.storage import resolve_storage_path
 
@@ -132,6 +139,8 @@ def health() -> dict:
     except Exception:  # noqa: BLE001
         storage_state = "error"
 
+    email_info = email_provider_info()
+
     return {
         "status": "ok",
         "app": settings.app_name,
@@ -141,7 +150,7 @@ def health() -> dict:
         "providers": {
             "gemini": provider_label(),
             "telephony": settings.telephony_provider,
-            "email": settings.email_delivery_mode if settings.brevo_api_key else "not_configured",
+            "email": email_info["provider"] if email_info["configured"] else "not_configured",
         },
     }
 

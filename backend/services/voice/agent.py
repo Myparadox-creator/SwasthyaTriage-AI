@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
+import time
 from dataclasses import dataclass, field
 
 from config import settings
 from models import Case, CaseMeasurement, CaseSymptom
 from models.enums import Priority, Provenance
-from services.gemini.client import GeminiClient
+from services.gemini.client import GeminiClient, is_circuit_open
 from services.intake.conversation import (
     _ctx,
     apply_extraction,
@@ -28,6 +30,29 @@ from services.intake.fallback import Extraction, extract_from_message
 from services.safety.service import reevaluate_case
 
 logger = logging.getLogger("swasthyatriage.voice.agent")
+
+
+def _is_emergency_text(text: str) -> bool:
+    """Regex pattern detector for critical clinical red flags across English, Hindi, and Odia."""
+    t = (text or "").lower()
+    patterns = [
+        # Chest / Cardiac
+        r"\b(?:chest|seene|chhati)\b.*?\b(?:pain|tightness|pressure|dard|takleef|betha)\b",
+        r"\b(?:baayein|left)\s+(?:haath|arm|shoulder)\b",
+        r"\b(?:heart\s+attack|dil\s+ka\s+daura)\b",
+        # Respiratory
+        r"\b(?:shortness\s+of\s+breath|breathless|gasping|stridor)\b",
+        r"\bsaans\s+lene\s+(?:me|mein)\b.*?\b(?:takleef|dikkat|pareshani|kashta)\b",
+        r"\b(?:saans\s+phool|swasa\s+kashta|sweas\s+asuchi)\b",
+        # Neurological / Consciousness
+        r"\b(?:unconscious|fainted|seizure|paralysis|behosh|daura)\b",
+        r"\b(?:facial\s+droop|slurred\s+speech)\b",
+        # Hemorrhage / Trauma
+        r"\b(?:uncontrolled\s+bleeding|vomiting\s+blood|coughing\s+blood|khoon\s+ki\s+ulti|rokto)\b",
+        # Self-harm / Crisis
+        r"\b(?:suicide|kill\s+myself|end\s+my\s+life|aatmahatya|khudkushi)\b",
+    ]
+    return any(re.search(p, t) for p in patterns)
 
 
 class AudioUnsupportedError(Exception):
@@ -47,6 +72,7 @@ class VoiceTurn:
     user_transcript: str | None = None
     is_emergency: bool = False
     urgency: str = "GREEN"
+    diagnostics: dict = field(default_factory=dict)
 
 
 class VoiceAgent:
@@ -78,6 +104,7 @@ class MockVoiceAgent(VoiceAgent):
         audio_mime: str | None = None,
         actor=None,
     ) -> VoiceTurn:
+        t0 = time.perf_counter()
         if audio_b64 and not settings.gemini_enabled:
             raise AudioUnsupportedError(
                 "Voice audio input requires GEMINI_API_KEY (not configured)"
@@ -106,13 +133,44 @@ class MockVoiceAgent(VoiceAgent):
 
         reevaluate_case(db, case, trigger="voice", actor=actor, extra_free_text=text)
 
+        is_emergency = case.priority == Priority.URGENT_REVIEW or _is_emergency_text(text)
+        if is_emergency:
+            case.priority = Priority.URGENT_REVIEW
+            lang_code = case.language.value if case.language else "hi"
+            if lang_code == "hi":
+                reply_text = (
+                    "🚨 गंभीर लक्षण मिले हैं। कृपया तुरंत नजदीकी अस्पताल के आपातकालीन विभाग में जाएं "
+                    "या 108 / 112 एम्बुलेंस को कॉल करें।"
+                )
+            elif lang_code == "od":
+                reply_text = (
+                    "🚨 ଜରୁରୀକାଳୀନ ଲକ୍ଷଣ ଦେଖାଦେଇଛି। ଦୟାକରି ତୁରନ୍ତ ନିକଟସ୍ଥ ଡାକ୍ତରଖାନାରେ ଯାଆନ୍ତୁ "
+                    "କିମ୍ବା ୧୦୮ / ୧୧୨ ଆମ୍ବୁଲାନ୍ସ ଡାକନ୍ତୁ।"
+                )
+            else:
+                reply_text = (
+                    "🚨 Critical red flag symptoms detected. Please seek emergency medical care immediately "
+                    "at the nearest hospital or call 108 / 112 for an ambulance."
+                )
+        else:
+            reply_text = build_reply(case, extraction, q)
+
+        processing_ms = round((time.perf_counter() - t0) * 1000, 1)
         return VoiceTurn(
-            text=build_reply(case, extraction, q),
+            text=reply_text,
             progress=progress(db, case),
-            can_submit=q is None,
+            can_submit=is_emergency or q is None,
             added_symptoms=changes["added_symptoms"],
             added_measurement=changes["added_measurement"],
             user_transcript=text,
+            is_emergency=is_emergency,
+            urgency="RED" if is_emergency else "GREEN",
+            diagnostics={
+                "processing_ms": processing_ms,
+                "provider": "mock",
+                "is_emergency": is_emergency,
+                "fast_path": True,
+            },
         )
 
 
@@ -141,29 +199,60 @@ class GeminiVoiceAgent(VoiceAgent):
         audio_mime: str | None = None,
         actor=None,
     ) -> VoiceTurn:
+        t0 = time.perf_counter()
+        # Fast-path: If Gemini circuit breaker is open, bypass network and return deterministic turn in <5ms
+        if is_circuit_open():
+            logger.info("Gemini circuit breaker open: fast-pathing voice turn to deterministic fallback")
+            return self._mock_fallback.respond(
+                db=db,
+                case=case,
+                user_text=user_text,
+                audio_b64=audio_b64,
+                audio_mime=audio_mime,
+                actor=actor,
+            )
+
         user_transcript: str | None = None
         effective_text = (user_text or "").strip()
 
+        # Critical Safety Directive: Never delay emergency escalation while waiting for an external LLM
+        if _is_emergency_text(effective_text):
+            logger.info("Critical emergency detected via regex fast-path: immediate triage escalation")
+            return self._mock_fallback.respond(
+                db=db,
+                case=case,
+                user_text=effective_text,
+                audio_b64=audio_b64,
+                audio_mime=audio_mime,
+                actor=actor,
+            )
+
         # 1. Multimodal Audio Processing (Speech-to-Text)
-        if audio_b64:
+        # Fast-path: If client-side speech recognition already transcribed the utterance (effective_text is non-empty),
+        # skip redundant network audio transcription to optimize response latency.
+        if audio_b64 and not effective_text:
             try:
                 raw_bytes = base64.b64decode(audio_b64)
                 transcribed = self._gemini.transcribe_audio(
-                    raw_bytes, mime_type=audio_mime or "audio/webm"
+                    raw_bytes, mime_type=audio_mime or "audio/webm", is_interactive=True
                 )
                 if transcribed:
                     user_transcript = transcribed
                     effective_text = transcribed
             except Exception as exc:
                 logger.warning("Audio transcription through Gemini failed: %s", exc)
-                if not effective_text:
-                    # If no fallback text was provided, re-raise or use descriptive note
-                    effective_text = "Audio turn submitted"
+                return self._mock_fallback.respond(
+                    db=db,
+                    case=case,
+                    user_text="Audio turn submitted",
+                    actor=actor,
+                )
 
         if not effective_text:
             raise ValueError("empty_turn")
 
         # 2. Clinical Triage Evaluation via Gemini
+        t_llm_start = time.perf_counter()
         try:
             prior_context = {
                 "case_number": case.case_number,
@@ -177,7 +266,9 @@ class GeminiVoiceAgent(VoiceAgent):
                 user_text=effective_text,
                 language=lang,
                 prior_context=prior_context,
+                is_interactive=True,
             )
+            llm_time_ms = round((time.perf_counter() - t_llm_start) * 1000, 1)
         except Exception as exc:
             logger.warning("Gemini clinical voice turn failed, falling back to rule engine: %s", exc)
             return self._mock_fallback.respond(
@@ -261,6 +352,7 @@ class GeminiVoiceAgent(VoiceAgent):
         answered = len(ctx.get("answers") or {})
         total_q = max(len(case.symptoms) + 2, 5)
 
+        processing_ms = round((time.perf_counter() - t0) * 1000, 1)
         return VoiceTurn(
             text=reply_text,
             progress={"answered": answered, "total": total_q, "percent": min(100, int((answered / total_q) * 100))},
@@ -270,6 +362,13 @@ class GeminiVoiceAgent(VoiceAgent):
             user_transcript=user_transcript or effective_text,
             is_emergency=is_emergency,
             urgency=urgency,
+            diagnostics={
+                "processing_ms": processing_ms,
+                "llm_time_ms": llm_time_ms,
+                "provider": "gemini",
+                "is_emergency": is_emergency,
+                "fast_path": False,
+            },
         )
 
 

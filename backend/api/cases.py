@@ -34,11 +34,14 @@ from schemas.case import (
     SymptomOut,
 )
 from schemas.documents import DocumentOut
+import logging
 from services.audit import AuditAction, record_audit
 from services.exports.excel import sync_patient_to_persistent_workbook
-from services.gemini import ProviderError, get_provider
+from services.gemini import ProviderError, ProviderUnavailable, get_provider
 from services.gemini.questions import suggest_questions
 from services.gemini.summary import build_summary_payload, generated_at_now
+
+logger = logging.getLogger(__name__)
 from services.notifications import NotificationType, notify_facility_staff
 from services.safety.service import reevaluate_case
 from services.triage.note import build_triage_note
@@ -201,7 +204,7 @@ def get_triage_note(
 @router.post("/{case_id}/submit", response_model=SubmitResponse)
 def submit_case(
     case_id: int,
-    user: User = Depends(require_roles(Role.PATIENT)),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     case = get_case_or_403(db, user, case_id)
@@ -226,12 +229,13 @@ def submit_case(
         case=case,
         metadata={"priority": case.priority.value, "language": case.language.value},
     )
+    submitted_dt_str = case.submitted_at.strftime("%d %b %Y, %I:%M %p")
     notify_facility_staff(
         db,
         facility_id=case.facility_id,
         type=NotificationType.CASE_SUBMITTED,
-        title="New assessment submitted",
-        body=f"Case {case.case_number} ({case.priority.value}) is ready for review",
+        title="🚨 New Patient Case Submitted",
+        body=f"Case {case.case_number} ({case.priority.value}) submitted on {submitted_dt_str} with medical documents ready for doctor review",
         case_id=case.id,
         exclude_user_id=user.id,
     )
@@ -242,7 +246,8 @@ def submit_case(
         status=case.status,
         priority=case.priority,
         signals_detected=len(evaluation.signals),
-        message=("Case submitted for healthcare professional review."),
+        submitted_at=case.submitted_at,
+        message=f"Case {case.case_number} successfully dispatched to doctor on {submitted_dt_str}.",
     )
 
 
@@ -257,12 +262,11 @@ def generate_ai_summary(
     payload = build_summary_payload(case)
     try:
         summary = provider.summarize_case(payload)
-    except ProviderError as exc:
-        raise AppError(
-            f"AI summary is unavailable right now: {exc}",
-            status_code=502,
-            code="ai_summary_failed",
-        ) from exc
+    except (ProviderError, ProviderUnavailable) as exc:
+        logger.warning("AI provider unavailable, using deterministic mock summary: %s", exc)
+        from services.gemini.summary import render_mock_summary
+
+        summary = render_mock_summary(payload)
 
     case.ai_summary = summary
     case.ai_summary_generated_at = generated_at_now()

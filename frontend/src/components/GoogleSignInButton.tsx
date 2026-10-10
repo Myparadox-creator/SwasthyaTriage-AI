@@ -135,13 +135,16 @@ export default function GoogleSignInButton({ role }: GoogleSignInButtonProps) {
           const msg = String(innerErr?.message || innerErr)
           if (msg.toLowerCase().includes('already signed in')) {
             await clerk.signOut()
-            await signIn.authenticateWithRedirect({
-              strategy: 'oauth_google',
-              redirectUrl: '/sso-callback',
-              redirectUrlComplete: '/auth/oauth-sync',
-              continueSignUp: true,
-            })
-            return
+            const fresh = clerk.client?.signIn ?? clerk.client?.signUp
+            if (fresh) {
+              await fresh.authenticateWithRedirect({
+                strategy: 'oauth_google',
+                redirectUrl: '/sso-callback',
+                redirectUrlComplete: '/auth/oauth-sync',
+                continueSignUp: true,
+              })
+              return
+            }
           }
           if (signUp) {
             await signUp.authenticateWithRedirect({
@@ -199,6 +202,11 @@ export default function GoogleSignInButton({ role }: GoogleSignInButtonProps) {
   }
 
   const roleLabel = role ? role.replace('_', ' ').toLowerCase() : 'user'
+  const isRoleError =
+    !!error &&
+    (error.toLowerCase().includes('registered as') ||
+      error.toLowerCase().includes('access denied') ||
+      error.toLowerCase().includes('role_mismatch'))
 
   return (
     <div className="space-y-2">
@@ -230,12 +238,14 @@ export default function GoogleSignInButton({ role }: GoogleSignInButtonProps) {
           <div className="flex items-start gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
             <div className="flex-1 space-y-0.5">
-              <span className="font-bold text-rose-950 block">Role Access Blocked</span>
+              <span className="font-bold text-rose-950 block">
+                {isRoleError ? 'Role Access Blocked' : 'Sign-in Error'}
+              </span>
               <span className="font-medium leading-relaxed block">{error}</span>
             </div>
           </div>
 
-          {error.toLowerCase().includes('registered as') || error.toLowerCase().includes('access denied') ? (
+          {isRoleError ? (
             <p className="text-[11px] font-semibold text-rose-700 bg-rose-100/70 p-2 rounded-lg">
               🔒 Security Policy: Each role requires a unique email address. Please select your registered role portal tab or use a separate email for {roleLabel.toUpperCase()}.
             </p>

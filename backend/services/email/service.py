@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session
 from config import settings
 from models import User
 from models.email import EmailLog, EmailVerificationToken, PasswordResetToken
-from services.email.brevo import BrevoClient, BrevoError
+from services.email.base import EmailError
+from services.email.client import get_email_client
 from services.email.templates import render_email_template
 
 logger = logging.getLogger("swasthyatriage.email")
@@ -32,7 +33,7 @@ def dispatch_email(
     context: dict,
     recipient_name: str | None = None,
 ) -> EmailLog:
-    """Renders template, records EmailLog, and attempts delivery via Brevo."""
+    """Renders template, records EmailLog, and attempts delivery via Resend."""
     # Ensure default app_url in context
     if "app_url" not in context:
         context["app_url"] = settings.app_base_url
@@ -55,8 +56,8 @@ def dispatch_email(
     db.add(log_entry)
     db.flush()
 
-    # 2. Attempt delivery through Brevo
-    client = BrevoClient()
+    # 2. Attempt delivery through the configured provider
+    client = get_email_client()
     try:
         res = client.send_email(
             recipient_email=recipient_email,
@@ -67,10 +68,10 @@ def dispatch_email(
             tags=[template_name],
         )
         log_entry.status = "SENT"
-        log_entry.brevo_message_id = res.get("messageId")
+        log_entry.provider_message_id = res.get("messageId")
         log_entry.sent_at = datetime.now(UTC)
         log_entry.attempts += 1
-    except BrevoError as exc:
+    except EmailError as exc:
         log_entry.status = "FAILED"
         log_entry.attempts += 1
         log_entry.error_detail = str(exc)[:500]
@@ -145,7 +146,9 @@ def verify_email_token(db: Session, raw_token: str) -> User | None:
     return user
 
 
-def create_and_send_password_reset_email(db: Session, user: User) -> str:
+def create_and_send_password_reset_email(
+    db: Session, user: User, app_url: str | None = None
+) -> str:
     """Generates a secure password reset token, saves its hash, and dispatches reset email."""
     raw_token = secrets.token_urlsafe(32)
     token_hash = _hash_token(raw_token)
@@ -178,6 +181,7 @@ def create_and_send_password_reset_email(db: Session, user: User) -> str:
             "name": user.full_name,
             "token": raw_token,
             "expires_minutes": 30,
+            "app_url": (app_url or settings.app_base_url).rstrip("/"),
         },
     )
     return raw_token
@@ -329,7 +333,7 @@ def retry_failed_email(db: Session, log_id: int) -> EmailLog | None:
     if not log or log.status not in ("FAILED", "PENDING"):
         return log
 
-    client = BrevoClient()
+    client = get_email_client()
     try:
         # Re-render or use cached subject
         subject, html_content, text_content = render_email_template(
@@ -345,11 +349,11 @@ def retry_failed_email(db: Session, log_id: int) -> EmailLog | None:
             tags=[log.template_name],
         )
         log.status = "SENT"
-        log.brevo_message_id = res.get("messageId")
+        log.provider_message_id = res.get("messageId")
         log.sent_at = datetime.now(UTC)
         log.error_detail = None
         log.attempts += 1
-    except BrevoError as exc:
+    except EmailError as exc:
         log.attempts += 1
         log.error_detail = f"Retry failed: {exc}"[:500]
 

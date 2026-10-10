@@ -1,26 +1,29 @@
-"""Admin email settings, outbox inspection, test-email sender, and Brevo webhooks."""
+"""Admin email settings, outbox inspection, test-email sender, and Resend webhooks."""
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
-from auth.dependencies import get_current_user, require_roles
+from auth.dependencies import require_roles
 from config import settings
 from database.session import get_db
-from middleware.errors import AppError, ForbiddenError, NotFoundError
+from middleware.errors import AppError, NotFoundError
 from middleware.ratelimit import limiter
 from models import User
 from models.email import EmailLog
 from models.enums import Role
 from schemas.auth import AdminEmailTestRequest, MessageResponse
 from services.audit import AuditAction, record_audit
-from services.email import BrevoClient, dispatch_email, retry_failed_email
+from services.email import dispatch_email, email_provider_info, retry_failed_email
 
 logger = logging.getLogger("swasthyatriage.email")
 
@@ -28,9 +31,20 @@ router = APIRouter(tags=["email_admin"])
 
 ADMIN_ROLES = (Role.SUPER_ADMIN, Role.FACILITY_ADMIN)
 
+# Resend event type -> EmailLog.status
+RESEND_EVENT_STATUS = {
+    "email.sent": "SENT",
+    "email.delivered": "DELIVERED",
+    "email.delivery_delayed": "SENT",
+    "email.complained": "FAILED",
+    "email.bounced": "BOUNCED",
+    "email.opened": "OPENED",
+    "email.clicked": "CLICKED",
+}
+
 
 class EmailStatusResponse(BaseModel):
-    provider: str = "Brevo Transactional Email"
+    provider: str = "Transactional Email"
     configured: bool
     delivery_mode: str
     sender_email: str
@@ -42,6 +56,39 @@ class EmailStatusResponse(BaseModel):
     recent_stats: dict[str, int] = {}
     recent_logs: list[dict[str, Any]] = []
     templates: list[dict[str, str]] = []
+
+
+def verify_resend_signature(
+    secret: str,
+    svix_id: str | None,
+    svix_timestamp: str | None,
+    svix_signature: str | None,
+    raw_body: bytes,
+) -> bool:
+    """Verifies a Resend (Svix) webhook signature.
+
+    Signed content is ``{svix_id}.{svix_timestamp}.{body}`` HMAC-SHA256'd with the
+    base64-decoded signing secret, matching the Svix specification.
+    """
+    if not (svix_id and svix_timestamp and svix_signature):
+        return False
+
+    encoded_secret = secret.split("_", 1)[1] if secret.startswith("whsec_") else secret
+    try:
+        key = base64.b64decode(encoded_secret)
+    except Exception:
+        return False
+
+    signed_content = f"{svix_id}.{svix_timestamp}.".encode() + raw_body
+    expected = base64.b64encode(
+        hmac.new(key, signed_content, hashlib.sha256).digest()
+    ).decode()
+
+    for part in svix_signature.split(" "):
+        _, _, sig = part.partition(",")
+        if sig and hmac.compare_digest(sig, expected):
+            return True
+    return False
 
 
 @router.get("/api/admin/email/status", response_model=EmailStatusResponse)
@@ -75,7 +122,7 @@ def get_email_status(
             "template_name": log.template_name,
             "subject": log.subject,
             "status": log.status.lower(),
-            "brevo_message_id": log.brevo_message_id,
+            "provider_message_id": log.provider_message_id,
             "attempts": log.attempts,
             "retry_count": log.attempts,
             "created_at": log.created_at.isoformat() if log.created_at else None,
@@ -97,13 +144,15 @@ def get_email_status(
         {"name": "security_alert", "description": "Important Security Alert", "purpose": "Security event alert"},
     ]
 
+    info = email_provider_info()
+
     return EmailStatusResponse(
-        provider="Brevo Transactional Email",
-        configured=bool(settings.brevo_api_key),
+        provider=info["provider"],
+        configured=info["configured"],
         delivery_mode=settings.email_delivery_mode,
-        sender_email=settings.brevo_sender_email,
-        sender_name=settings.brevo_sender_name,
-        reply_to_email=settings.brevo_reply_to_email,
+        sender_email=info["sender_email"],
+        sender_name=info["sender_name"],
+        reply_to_email=info["reply_to_email"],
         recent_sent_count=sent_count,
         recent_failed_count=failed_count,
         recent_delivered_count=delivered_count,
@@ -132,13 +181,7 @@ def send_admin_test_email(
     if not target_email or "@" not in target_email:
         raise AppError("Administrator does not have a valid email configured", status_code=400)
 
-    test_context = {
-        "name": admin.full_name,
-        "message": payload.message
-        or "This is a verified test email sent via Brevo Transactional Email System from SwasthyaFlow AI.",
-        "app_url": settings.app_base_url,
-    }
-
+    info = email_provider_info()
     try:
         log_entry = dispatch_email(
             db,
@@ -147,9 +190,9 @@ def send_admin_test_email(
             template_name="security_alert",
             context={
                 "name": admin.full_name,
-                "action_title": payload.subject or "Admin Brevo Connectivity Test",
+                "action_title": payload.subject or "Admin Email Connectivity Test",
                 "details": payload.message
-                or f"Successfully validated Brevo API integration for {settings.brevo_sender_name} in {settings.email_delivery_mode.upper()} mode.",
+                or f"Successfully validated {info['provider']} integration for {info['sender_name']} in {settings.email_delivery_mode.upper()} mode.",
             },
         )
         record_audit(
@@ -160,16 +203,16 @@ def send_admin_test_email(
         )
     except Exception as exc:
         logger.error("[Admin Email] Test email failed: %s", exc)
-        raise AppError(f"Failed to send test email: {exc}", status_code=502)
+        raise AppError(f"Failed to send test email: {exc}", status_code=502) from exc
 
     if log_entry.status == "FAILED":
         raise AppError(
-            f"Brevo provider rejected the test email: {log_entry.error_detail}",
+            f"{info['provider']} rejected the test email: {log_entry.error_detail}",
             status_code=502,
         )
 
     return MessageResponse(
-        message=f"Test email successfully dispatched to {target_email} (Status: {log_entry.status}, Message ID: {log_entry.brevo_message_id or 'mock'})"
+        message=f"Test email successfully dispatched to {target_email} (Status: {log_entry.status}, Message ID: {log_entry.provider_message_id or 'mock'})"
     )
 
 
@@ -194,25 +237,33 @@ def retry_email(
     return MessageResponse(message=f"Email retried successfully (Status: {log.status})")
 
 
-# --- Brevo Transactional Webhooks ---
+# --- Resend Transactional Webhooks (Svix-signed) ---
 
-@router.post("/api/webhooks/brevo")
-async def brevo_webhook_receiver(
+@router.post("/api/webhooks/resend")
+async def resend_webhook_receiver(
     request: Request,
     db: Session = Depends(get_db),
-    x_webhook_secret: str | None = Header(None, alias="X-Brevo-Webhook-Secret"),
+    svix_id: str | None = Header(None, alias="svix-id"),
+    svix_timestamp: str | None = Header(None, alias="svix-timestamp"),
+    svix_signature: str | None = Header(None, alias="svix-signature"),
 ):
-    """Ingests Brevo transactional webhook events (sent, delivered, opened, bounce, etc.)."""
-    # Verify webhook secret if configured
-    if settings.brevo_webhook_secret and x_webhook_secret != settings.brevo_webhook_secret:
-        raise HTTPException(status_code=403, detail="Invalid webhook secret")
+    """Ingests Resend transactional webhook events (delivered, opened, bounce, etc.)."""
+    raw_body = await request.body()
+
+    # Verify Svix signature when a signing secret is configured
+    if settings.resend_webhook_secret and not verify_resend_signature(
+        settings.resend_webhook_secret, svix_id, svix_timestamp, svix_signature, raw_body
+    ):
+        raise HTTPException(status_code=403, detail="Invalid webhook signature")
 
     try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+        import json
 
-    # Brevo can deliver single object or array of events
+        body = json.loads(raw_body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from None
+
+    # Resend delivers a single event object; tolerate arrays as well.
     events = body if isinstance(body, list) else [body]
 
     processed = 0
@@ -220,39 +271,27 @@ async def brevo_webhook_receiver(
         if not isinstance(evt, dict):
             continue
 
-        event_type = (evt.get("event") or "").lower()
-        msg_id = evt.get("message-id") or evt.get("messageId")
+        event_type = (evt.get("type") or "").lower()
+        data = evt.get("data") or {}
+        msg_id = data.get("email_id") or data.get("id")
 
         if not msg_id:
             continue
 
-        # Find matching outbox log
         log = db.scalar(
-            select(EmailLog).where(EmailLog.brevo_message_id == str(msg_id))
+            select(EmailLog).where(EmailLog.provider_message_id == str(msg_id))
         )
-        if not log:
-            # Try matching by bare message-id without brackets
-            bare_id = str(msg_id).strip("<>")
-            log = db.scalar(
-                select(EmailLog).where(EmailLog.brevo_message_id.contains(bare_id))
-            )
 
         if log:
-            if event_type in ("delivered", "request"):
-                log.status = "DELIVERED"
-            elif event_type in ("opened", "unique_opened"):
-                log.status = "OPENED"
-            elif event_type in ("click",):
-                log.status = "CLICKED"
-            elif event_type in ("soft_bounce", "hard_bounce", "invalid_email"):
-                log.status = "BOUNCED"
-                log.error_detail = f"Brevo bounce: {evt.get('reason', event_type)}"
-            elif event_type in ("blocked", "error"):
-                log.status = "FAILED"
-                log.error_detail = f"Brevo error: {evt.get('reason', event_type)}"
+            new_status = RESEND_EVENT_STATUS.get(event_type)
+            if new_status:
+                log.status = new_status
+            if event_type in ("email.bounced", "email.complained", "email.failed"):
+                detail = data.get("bounce") or data.get("reason") or event_type
+                log.error_detail = f"Resend {event_type.split('.')[-1]}: {detail}"
 
             meta = dict(log.email_metadata or {})
-            meta[f"webhook_{event_type}"] = evt.get("date") or evt.get("ts_event")
+            meta[f"webhook_{event_type}"] = evt.get("created_at")
             log.email_metadata = meta
             processed += 1
 

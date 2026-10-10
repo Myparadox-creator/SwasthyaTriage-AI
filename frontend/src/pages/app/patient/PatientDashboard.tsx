@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '../../../stores/auth'
 import { api } from '../../../lib/api'
+import { indianGreeting } from '../../../lib/time'
 import type { CaseListResponse, CaseStatus, Priority } from '../../../lib/types'
 
 const PRIORITY_STYLE: Record<Priority, string> = {
@@ -40,6 +41,7 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(true)
 
   const [error, setError] = useState<string | null>(null)
+  const [greeting] = useState(() => indianGreeting())
 
   useEffect(() => {
     api<CaseListResponse>('/api/cases', { params: { page_size: 15 } })
@@ -59,7 +61,7 @@ export default function PatientDashboard() {
               <span>Namaste · Swasthya Care Portal</span>
             </div>
             <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-              Good morning, {user.full_name}
+              {greeting}, {user.full_name}
             </h1>
             <p className="mt-1 text-sm text-slate-600">
               Facility: <span className="font-semibold text-slate-800">{user.facility_name ?? 'Local Primary Health Centre'}</span>

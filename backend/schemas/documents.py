@@ -39,3 +39,26 @@ class DocumentListResponse(BaseModel):
     case_id: int
     case_number: str
     items: list[DocumentOut]
+
+
+class DocumentCitation(BaseModel):
+    document_id: int
+    filename: str
+    excerpt: str
+    relevance_score: float = 1.0
+
+
+class DocumentRAGRequest(BaseModel):
+    query: str
+    mode: str = "general"
+    document_ids: list[int] | None = None
+
+
+class DocumentRAGResponse(BaseModel):
+    answer: str
+    citations: list[DocumentCitation] = []
+    mode: str = "general"
+    model: str = "insightrag"
+    clinical_flags: list[str] = []
+    suggested_followups: list[str] = []
+    timestamp: datetime | None = None

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import secrets
 from datetime import UTC, datetime
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import select
@@ -69,6 +70,25 @@ def _user_out(db: Session, user: User) -> UserOut:
         designation=user.designation,
         phone=user.phone,
     )
+
+
+def _request_origin(request: Request) -> str | None:
+    """Best-effort origin of the app the user is actually browsing.
+
+    Prefers the browser ``Origin`` header, then ``Referer``, so password-reset
+    links point back to wherever the app is served (5173 dev, :8000 single-URL,
+    or a deployed domain) instead of a hard-coded host. Returns None to fall
+    back to the configured ``APP_BASE_URL``.
+    """
+    origin = request.headers.get("origin")
+    if origin and origin not in ("null", "*"):
+        return origin.rstrip("/")
+    referer = request.headers.get("referer")
+    if referer:
+        parsed = urlparse(referer)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+    return None
 
 
 def _set_refresh_cookie(response: Response, raw_token: str, max_age: int) -> None:
@@ -356,12 +376,16 @@ def signup(
 
 
 @router.post("/forgot-password", response_model=MessageResponse)
-def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     """Always returns the same generic message — never reveals whether an email exists."""
     user = db.scalar(select(User).where(User.email == payload.email.lower().strip()))
     if user is not None and user.is_active and user.deleted_at is None:
         try:
-            create_and_send_password_reset_email(db, user)
+            create_and_send_password_reset_email(db, user, app_url=_request_origin(request))
         except Exception as exc:
             logger.warning("[Auth] Failed to queue password reset email: %s", exc)
     return MessageResponse(

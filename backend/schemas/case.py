@@ -259,6 +259,7 @@ class SubmitResponse(BaseModel):
     priority: Priority
     signals_detected: int
     message: str
+    submitted_at: datetime | None = None
 
 
 class AISummaryResponse(BaseModel):

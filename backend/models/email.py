@@ -13,7 +13,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from database.session import Base
 
@@ -31,7 +31,7 @@ class EmailLog(Base):
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="PENDING", index=True
     )  # PENDING | SENT | DELIVERED | FAILED | BOUNCED | OPENED | CLICKED
-    brevo_message_id: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
+    provider_message_id: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_detail: Mapped[str | None] = mapped_column(Text)
     email_metadata: Mapped[dict | None] = mapped_column("metadata", JSON)

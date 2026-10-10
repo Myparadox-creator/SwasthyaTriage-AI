@@ -16,6 +16,8 @@ import {
   Sparkles,
   Stethoscope,
   UserPlus,
+  BookOpen,
+  History,
 } from 'lucide-react'
 import { api, fetchBlob } from '../../../lib/api'
 import type {
@@ -23,13 +25,17 @@ import type {
   CaseDetail,
   ChatHistoryResponse,
   ChatMessageOut,
+  ClinicalAnalysisResponse,
   DocumentExtractionStructured,
   DocumentOut,
   FollowUpOut,
+  LongitudinalHistoryResponse,
   ReviewNoteOut,
   ReviewOutcome,
+  SOPGuidelinesResponse,
 } from '../../../lib/types'
 import { PROVENANCE_BADGE } from './hcwMeta'
+import EvidenceLedger from './EvidenceLedger'
 import { FormDialog, LabeledInput } from './ui'
 
 const NO_DATA = '—'
@@ -52,9 +58,13 @@ export default function CaseReview() {
   const [showEscalate, setShowEscalate] = useState(false)
   const [showFollowup, setShowFollowup] = useState(false)
   const [showReferral, setShowReferral] = useState(false)
+  const [showLongitudinal, setShowLongitudinal] = useState(false)
 
   const [aiBox, setAiBox] = useState<AiSummaryResponse | null>(null)
   const [aiBusy, setAiBusy] = useState(false)
+  const [clinicalAnalysis, setClinicalAnalysis] = useState<ClinicalAnalysisResponse | null>(null)
+  const [sopGuidelines, setSopGuidelines] = useState<SOPGuidelinesResponse | null>(null)
+  const [longitudinalData, setLongitudinalData] = useState<LongitudinalHistoryResponse | null>(null)
 
   const [fuReason, setFuReason] = useState('')
   const [fuItems, setFuItems] = useState('')
@@ -70,6 +80,11 @@ export default function CaseReview() {
     setCaseData(detail)
     setMessages(hist.messages)
     setNotes(detail.review_notes)
+
+    // Parallel fetch AI decision support aids
+    api<ClinicalAnalysisResponse>(`/api/cases/${cid}/clinical-analysis`).then(setClinicalAnalysis).catch(() => null)
+    api<SOPGuidelinesResponse>(`/api/cases/${cid}/sop-guidelines`).then(setSopGuidelines).catch(() => null)
+    api<LongitudinalHistoryResponse>(`/api/cases/${cid}/longitudinal-history`).then(setLongitudinalData).catch(() => null)
   }, [])
 
   useEffect(() => {
@@ -85,6 +100,10 @@ export default function CaseReview() {
         setMessages(hist.messages)
         setNotes(detail.review_notes)
         setLoading(false)
+
+        api<ClinicalAnalysisResponse>(`/api/cases/${caseIdNum}/clinical-analysis`).then((res) => active && setClinicalAnalysis(res)).catch(() => null)
+        api<SOPGuidelinesResponse>(`/api/cases/${caseIdNum}/sop-guidelines`).then((res) => active && setSopGuidelines(res)).catch(() => null)
+        api<LongitudinalHistoryResponse>(`/api/cases/${caseIdNum}/longitudinal-history`).then((res) => active && setLongitudinalData(res)).catch(() => null)
       })
       .catch((err) => {
         if (!active) return
@@ -452,6 +471,95 @@ export default function CaseReview() {
             </div>
           </section>
 
+          {/* CROSS-MODAL CLINICAL CONTRADICTIONS */}
+          {clinicalAnalysis?.contradictions && clinicalAnalysis.contradictions.length > 0 && (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 shadow-sm space-y-3">
+              <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wide">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                Cross-Modal Contradiction Alert ({clinicalAnalysis.contradictions.length})
+              </div>
+              <p className="text-xs text-amber-800">
+                Discrepancies identified between patient oral report, vital measurements, and medical documents.
+              </p>
+              <div className="space-y-2.5">
+                {clinicalAnalysis.contradictions.map((c, i) => (
+                  <div key={i} className="rounded-xl border border-amber-200 bg-white p-3 text-xs shadow-xs space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-semibold">
+                      <span className="font-mono text-amber-700">{c.contradiction_type}</span>
+                      <span className="rounded bg-rose-100 text-rose-700 px-1.5 py-0.5 font-bold text-[10px]">{c.severity}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <div>
+                        <span className="font-medium text-slate-500 block">Statement A ({c.source_a}):</span>
+                        <span className="text-slate-800 font-semibold">{c.statement_a}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-slate-500 block">Statement B ({c.source_b}):</span>
+                        <span className="text-slate-800 font-semibold">{c.statement_b}</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-600"><strong className="text-slate-700">Clinical Implication:</strong> {c.clinical_implication}</p>
+                    <p className="text-[11px] text-teal-800 font-medium bg-teal-50/80 p-1.5 rounded border border-teal-100">
+                      🩺 <strong>Clinician Action:</strong> {c.recommended_doctor_action}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* EVIDENCE-GROUNDED INSTITUTIONAL SOP GUIDELINES (RAG) */}
+          {sopGuidelines?.has_guidance && sopGuidelines.protocols.length > 0 && (
+            <section className="card min-w-0 !p-0 border-teal-200 bg-teal-50/20">
+              <header className="flex items-center gap-2 border-b border-teal-100 px-4 py-3 text-sm font-semibold text-teal-900 bg-teal-50/60">
+                <BookOpen className="h-4 w-4 text-teal-700" />
+                Evidence-Grounded Institutional SOP Guidelines
+                <span className="ml-auto rounded bg-teal-100 px-2 py-0.5 text-[11px] font-bold text-teal-800">
+                  Odisha Health & NHM
+                </span>
+              </header>
+              <div className="p-4 space-y-3">
+                {sopGuidelines.protocols.map((p, idx) => (
+                  <div key={idx} className="rounded-xl border border-teal-100 bg-white p-3 text-xs shadow-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800">{p.doc_title}</span>
+                      <span className="font-mono text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                        {p.source_citation}
+                      </span>
+                    </div>
+                    <p className="text-slate-600 text-xs italic">{p.triage_pathway}</p>
+                    {p.recommended_actions.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700">Recommended Clinician Triage Actions:</span>
+                        <ul className="mt-1 space-y-1">
+                          {p.recommended_actions.map((act, aIdx) => (
+                            <li key={aIdx} className="flex items-start gap-1.5 text-slate-700 text-xs">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-teal-600 shrink-0 mt-0.5" />
+                              <span>{act}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <p className="text-[10px] text-slate-400 italic">{sopGuidelines.clinical_disclaimer}</p>
+                {sopGuidelines.has_unverified_sources && (
+                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[10px] text-amber-800">
+                    ⚠ Source governance: one or more referenced SOPs are UNVERIFIED drafts and must not be
+                    cited as official institutional policy.
+                    {sopGuidelines.governance
+                      ? ` ${sopGuidelines.governance.verified_documents}/${sopGuidelines.governance.total_documents} sources verified.`
+                      : ''}
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* EVIDENCE TRACEABILITY LEDGER (Fact -> Source -> Review) */}
+          {caseIdNum != null && <EvidenceLedger caseId={caseIdNum} />}
+
           <section className="card min-w-0 !p-0">
           <header className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
             <Stethoscope className="h-4 w-4 text-brand-700" />
@@ -467,12 +575,33 @@ export default function CaseReview() {
                 <EmptyLine>{NO_DATA}</EmptyLine>
               ) : (
                 <ul className="space-y-1.5">
-                  {d.symptoms.map((s) => (
-                    <li key={s.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="text-slate-800">{s.term}</span>
-                      <ProvenanceBadge src={s.source} t={t} />
-                    </li>
-                  ))}
+                  {d.symptoms.map((s) => {
+                    const cItem = clinicalAnalysis?.symptom_confidences?.find(
+                      (ci) => ci.name.toLowerCase() === s.term.toLowerCase() || s.term.toLowerCase().includes(ci.name.toLowerCase())
+                    )
+                    return (
+                      <li key={s.id} className="flex items-center justify-between gap-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-800">{s.term}</span>
+                          {cItem && (
+                            <span
+                              className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${
+                                cItem.tier === 'HIGH'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : cItem.tier === 'MEDIUM'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                              }`}
+                              title={cItem.rationale + (cItem.evidence_quote ? `\nQuote: ${cItem.evidence_quote}` : '')}
+                            >
+                              {cItem.tier} ({Math.round(cItem.confidence * 100)}%)
+                            </span>
+                          )}
+                        </div>
+                        <ProvenanceBadge src={s.source} t={t} />
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
             </Block>
@@ -482,14 +611,35 @@ export default function CaseReview() {
                 <EmptyLine>{NO_DATA}</EmptyLine>
               ) : (
                 <ul className="space-y-1.5">
-                  {d.measurements.map((m) => (
-                    <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="text-slate-800">
-                        {m.name}: {m.value} {m.unit ?? ''}
-                      </span>
-                      <ProvenanceBadge src={m.source} t={t} />
-                    </li>
-                  ))}
+                  {d.measurements.map((m) => {
+                    const mItem = clinicalAnalysis?.measurement_confidences?.find(
+                      (mi) => mi.name.toLowerCase() === m.name.toLowerCase()
+                    )
+                    return (
+                      <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-800">
+                            {m.name}: {m.value} {m.unit ?? ''}
+                          </span>
+                          {mItem && (
+                            <span
+                              className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${
+                                mItem.tier === 'HIGH'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : mItem.tier === 'MEDIUM'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                              }`}
+                              title={mItem.rationale + (mItem.evidence_quote ? `\nQuote: ${mItem.evidence_quote}` : '')}
+                            >
+                              {mItem.tier} ({Math.round(mItem.confidence * 100)}%)
+                            </span>
+                          )}
+                        </div>
+                        <ProvenanceBadge src={m.source} t={t} />
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
             </Block>
@@ -598,6 +748,16 @@ export default function CaseReview() {
             >
               <PhoneCall className="h-4 w-4" />
               {t('hcw.review.prepareReferral')}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowLongitudinal(true)}
+              className="btn-secondary w-full flex items-center justify-center gap-2 text-xs py-2 bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200"
+              title="Inspect multi-encounter history, previous visit symptoms, and vital trajectories"
+            >
+              <History className="h-4 w-4 text-teal-700" />
+              Longitudinal History ({longitudinalData?.total_encounters || 1} Visits)
             </button>
 
             <button
@@ -717,6 +877,55 @@ export default function CaseReview() {
               {busy === 'referral' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t('common.submit')}
             </button>
+          </div>
+        </FormDialog>
+      )}
+
+      {showLongitudinal && (
+        <FormDialog title={`Longitudinal Journey — ${longitudinalData?.patient_name || 'Patient'}`} onClose={() => setShowLongitudinal(false)}>
+          <div className="space-y-4 text-xs">
+            <div className="rounded-xl bg-teal-50/80 p-3.5 border border-teal-200">
+              <span className="font-bold text-teal-900 block mb-1">Synthesized Longitudinal Trajectory:</span>
+              <p className="whitespace-pre-wrap text-teal-800 leading-relaxed font-sans">
+                {longitudinalData?.longitudinal_narrative || 'Single baseline encounter recorded. Progression tracking active.'}
+              </p>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-slate-700 uppercase tracking-wide text-[11px] mb-2">
+                Encounter Timeline ({longitudinalData?.encounters?.length || 0} Visits)
+              </h4>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {(longitudinalData?.encounters || []).map((enc, idx) => (
+                  <div key={idx} className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-brand-700">{enc.case_number} ({enc.date})</span>
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                        {enc.priority}
+                      </span>
+                    </div>
+                    <p className="font-medium text-slate-800">Chief concern: {enc.chief_concern || 'Routine check'}</p>
+                    {enc.symptoms.length > 0 && (
+                      <p className="text-slate-500 text-[11px]">Symptoms: {enc.symptoms.join(', ')}</p>
+                    )}
+                    {enc.vitals.length > 0 && (
+                      <p className="text-slate-500 text-[11px]">Vitals: {enc.vitals.join('; ')}</p>
+                    )}
+                    <span className="text-[10px] text-slate-400 font-mono block">Attribution: {enc.source_attribution}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowLongitudinal(false)}
+                className="btn-primary px-4 py-1.5 text-xs"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </FormDialog>
       )}

@@ -162,6 +162,7 @@ export interface SubmitResponse {
   priority: Priority
   signals_detected: number
   message: string
+  submitted_at?: string
 }
 
 export interface CaseCreateRequest {
@@ -221,6 +222,23 @@ export interface DocumentListResponse {
   case_id: number
   case_number: string
   items: DocumentOut[]
+}
+
+export interface DocumentCitation {
+  document_id: number
+  filename: string
+  excerpt: string
+  relevance_score: number
+}
+
+export interface DocumentRAGResponse {
+  answer: string
+  citations: DocumentCitation[]
+  mode: string
+  model: string
+  clinical_flags: string[]
+  suggested_followups: string[]
+  timestamp?: string
 }
 
 export interface ReviewNoteCreate {
@@ -405,6 +423,7 @@ export interface VoiceTurnResponse {
   added_symptoms: string[]
   added_measurement: boolean
   provider: string
+  diagnostics?: Record<string, any>
 }
 
 export interface FacilityOut {
@@ -449,4 +468,250 @@ export interface FacilityAnalyticsOut {
   source_distribution: Record<string, number>
   language_distribution: Record<string, number>
   daily_trend: { date: string; count: number }[]
+}
+
+// ----------------------------------------------------
+// AI Clinical Decision Support & Evaluation Types
+// ----------------------------------------------------
+export interface ConfidenceItem {
+  entity_type: string
+  name: string
+  value: string | null
+  unit: string | null
+  confidence: number
+  tier: 'HIGH' | 'MEDIUM' | 'LOW'
+  is_calibrated: boolean
+  evidence_quote: string | null
+  rationale: string
+  provenance: string
+}
+
+export interface ContradictionItem {
+  contradiction_type: string
+  severity: 'CRITICAL' | 'WARNING' | 'INFORMATIONAL'
+  statement_a: string
+  source_a: string
+  statement_b: string
+  source_b: string
+  clinical_implication: string
+  recommended_doctor_action: string
+}
+
+export interface MissingInfoItem {
+  syndrome: string
+  missing_aspect: string
+  urgency: 'HIGH' | 'MEDIUM' | 'LOW'
+  suggested_clinician_question: string
+  rationale: string
+}
+
+export interface ClinicalAnalysisResponse {
+  case_id: number
+  case_number: string
+  symptom_confidences: ConfidenceItem[]
+  measurement_confidences: ConfidenceItem[]
+  contradictions: ContradictionItem[]
+  missing_critical_info: MissingInfoItem[]
+  disclaimer: string
+}
+
+export interface SOPProtocol {
+  doc_id: string
+  doc_title: string
+  section: string
+  source_citation: string
+  relevance_score: number
+  triage_pathway: string
+  red_flag_criteria: string[]
+  recommended_actions: string[]
+  issuing_authority?: string | null
+  source_url?: string | null
+  publication_date?: string | null
+  version?: string
+  document_hash?: string | null
+  review_status?: string
+  is_verified?: boolean
+  governance_warning?: string | null
+}
+
+export interface SOPGovernanceSummary {
+  total_documents: number
+  verified_documents: number
+  unverified_documents: number
+  all_verified: boolean
+  governance_note: string
+}
+
+export interface SOPGuidelinesResponse {
+  case_number: string
+  has_guidance: boolean
+  protocols: SOPProtocol[]
+  clinical_disclaimer: string
+  governance?: SOPGovernanceSummary
+  has_unverified_sources?: boolean
+}
+
+// ----------------------------------------------------
+// Evidence Traceability Types
+// ----------------------------------------------------
+export type EvidenceReviewStatus = 'PENDING' | 'CONFIRMED' | 'EDITED' | 'REJECTED'
+
+export interface EvidenceRecord {
+  id: number
+  case_id: number
+  fact_type: string
+  fact_ref: string
+  label: string
+  unit: string | null
+  normalized_value: string | null
+  original_value: string | null
+  current_value: string | null
+  source_kind: string
+  source_provenance: string
+  source_snippet: string | null
+  source_ref_id: string | null
+  source_timestamp: string | null
+  extraction_method: string
+  model_version: string | null
+  extraction_timestamp: string | null
+  confidence: number | null
+  confidence_tier: string | null
+  is_calibrated: boolean
+  rationale: string | null
+  validation_warnings: string[]
+  sop_references: unknown[]
+  reviewer_status: EvidenceReviewStatus
+  reviewer_label: string | null
+  reviewed_at: string | null
+  review_reason: string | null
+}
+
+export interface EvidenceListResponse {
+  case_id: number
+  case_number: string
+  total: number
+  pending_review: number
+  evidence: EvidenceRecord[]
+  disclaimer: string
+}
+
+export interface LongitudinalEncounter {
+  case_number: string
+  date: string
+  facility: string | null
+  chief_concern: string | null
+  priority: string
+  status: string
+  symptoms: string[]
+  vitals: string[]
+  medications: string[]
+  source_attribution: string
+}
+
+export interface LongitudinalHistoryResponse {
+  patient_id: number
+  patient_name: string
+  total_encounters: number
+  longitudinal_narrative: string
+  encounters: LongitudinalEncounter[]
+  vital_trends: Record<string, { date: string; case_number: string; value: string; unit?: string; attribution: string }[]>
+}
+
+export interface LanguageEvalBreakdown {
+  name: string
+  sample_count: number
+  mean_wer: number
+  mean_cer: number
+  entity_precision: number
+  entity_recall: number
+  entity_f1: number
+}
+
+export interface AiEvaluationReport {
+  timestamp: string
+  total_test_cases: number
+  overall_metrics: {
+    mean_wer: number
+    mean_cer: number
+    mean_precision: number
+    mean_recall: number
+    mean_f1: number
+    expected_calibration_error_ece: number
+    calibration_status: string
+  }
+  language_breakdown: Record<string, LanguageEvalBreakdown>
+  cases: {
+    case_id: string
+    language: string
+    scenario: string
+    wer: number
+    cer: number
+    entity_f1: number
+    entity_precision: number
+    entity_recall: number
+    is_emergency: boolean
+  }[]
+  dataset_version?: string
+  model_version?: string
+  config_version?: string
+  provider?: string | null
+  dataset_kind?: string
+  is_clinical_validation?: boolean
+  unavailable_metrics?: string[]
+  warnings?: string[]
+}
+
+export interface EvaluationThresholdBreach {
+  metric: string
+  value: number
+  limit: number
+  direction: string
+}
+
+export interface EvaluationRunRecord {
+  id: number
+  run_label: string
+  kind: string
+  dataset_version: string
+  model_version: string
+  config_version: string
+  provider: string | null
+  dataset_kind: string
+  is_clinical_validation: boolean
+  total_samples: number
+  metrics: Record<string, number>
+  language_breakdown: Record<string, LanguageEvalBreakdown>
+  unavailable_metrics: string[]
+  warnings: string[]
+  thresholds_breached: EvaluationThresholdBreach[]
+  created_at: string
+  notes: string | null
+}
+
+export interface EvaluationHistoryResponse {
+  count: number
+  runs: EvaluationRunRecord[]
+  note: string
+}
+
+export interface EvaluationTrendMetric {
+  series: { run_id: number; created_at: string | null; value: number }[]
+  latest: number
+  previous: number | null
+  delta: number | null
+  direction: 'up' | 'down' | 'flat'
+  limit: number
+  better: 'lower' | 'higher'
+  threshold_breached: boolean
+  drift_detected: boolean
+}
+
+export interface EvaluationTrendResponse {
+  run_count: number
+  metrics: Record<string, EvaluationTrendMetric>
+  drift_detected: boolean
+  drift_metrics: string[]
+  thresholds: Record<string, { better: string; limit: number; drift_delta: number }>
+  is_clinical_validation: boolean
+  note: string
 }

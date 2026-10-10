@@ -84,14 +84,72 @@ def apply_extraction(db: Session, case: Case, extraction: Extraction, *, channel
     return {"added_symptoms": added_symptoms, "added_measurement": added_measurement}
 
 
-def active_questions(db: Session) -> list[QuestionBankItem]:
-    return list(
-        db.scalars(
-            select(QuestionBankItem)
-            .where(QuestionBankItem.is_active.is_(True))
-            .order_by(QuestionBankItem.order)
-        ).all()
-    )
+import time
+from dataclasses import dataclass
+
+
+@dataclass
+class CachedQuestion:
+    """Safe detached representation of a QuestionBankItem."""
+
+    id: int | None
+    code: str
+    category: str
+    target_field: str
+    text_en: str
+    text_hi: str | None
+    text_od: str | None
+    required_for_review: bool
+    order: int
+    is_active: bool = True
+
+    def text_for(self, language: str) -> str:
+        if language == "hi" and self.text_hi:
+            return self.text_hi
+        if language == "od" and self.text_od:
+            return self.text_od
+        return self.text_en
+
+
+_QUESTIONS_CACHE: list[CachedQuestion] | None = None
+_QUESTIONS_CACHE_TIME: float = 0.0
+
+
+def clear_questions_cache() -> None:
+    global _QUESTIONS_CACHE, _QUESTIONS_CACHE_TIME
+    _QUESTIONS_CACHE = None
+    _QUESTIONS_CACHE_TIME = 0.0
+
+
+def active_questions(db: Session) -> list[CachedQuestion]:
+    """Retrieve active questions with in-memory TTL caching and safe detached instances."""
+    global _QUESTIONS_CACHE, _QUESTIONS_CACHE_TIME
+    now = time.time()
+    if _QUESTIONS_CACHE is not None and (now - _QUESTIONS_CACHE_TIME) < 60.0:
+        return _QUESTIONS_CACHE
+    rows = db.scalars(
+        select(QuestionBankItem)
+        .where(QuestionBankItem.is_active.is_(True))
+        .order_by(QuestionBankItem.order)
+    ).all()
+    items = [
+        CachedQuestion(
+            id=q.id,
+            code=q.code,
+            category=q.category,
+            target_field=q.target_field,
+            text_en=q.text_en,
+            text_hi=q.text_hi,
+            text_od=q.text_od,
+            required_for_review=q.required_for_review,
+            order=q.order,
+            is_active=q.is_active,
+        )
+        for q in rows
+    ]
+    _QUESTIONS_CACHE = items
+    _QUESTIONS_CACHE_TIME = now
+    return items
 
 
 def is_satisfied(db: Session, case: Case, q: QuestionBankItem) -> bool:

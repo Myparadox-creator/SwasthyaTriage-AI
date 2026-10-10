@@ -19,14 +19,26 @@ ALLOWED_UPLOADS: dict[str, tuple[tuple[str, ...], bytes]] = {
     "application/pdf": ((".pdf",), b"%PDF-"),
     "image/jpeg": ((".jpg", ".jpeg"), b"\xff\xd8\xff"),
     "image/png": ((".png",), b"\x89PNG\r\n\x1a\n"),
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ((".docx",), b"PK\x03\x04"),
 }
 
 
-def detect_magic(data: bytes) -> tuple[str, bytes] | None:
-    """Detect the real file type from its magic bytes (never trust the client)."""
+def detect_magic(data: bytes, filename: str = "") -> tuple[str, bytes] | None:
+    """Detect the real file type from its magic bytes or safe text inspection."""
     for ctype, (_exts, magic) in ALLOWED_UPLOADS.items():
         if data[: len(magic)] == magic:
             return ctype, magic
+
+    ext = Path(filename).suffix.lower()
+    if ext in (".txt", ".csv"):
+        try:
+            head = data[:4096].decode("utf-8")
+            if "\x00" not in head:
+                ctype = "text/csv" if ext == ".csv" else "text/plain"
+                return ctype, b""
+        except UnicodeDecodeError:
+            pass
+
     return None
 
 
@@ -43,24 +55,29 @@ def validate_upload(filename: str, content_type: str | None, data: bytes) -> str
             code="file_too_large",
         )
 
-    detected = detect_magic(data)
+    detected = detect_magic(data, filename)
     if detected is None:
         raise AppError(
-            "Unsupported file type. Upload a PDF, JPG or PNG.",
+            "Unsupported file type. Upload a PDF, DOCX, TXT, CSV, JPG or PNG.",
             status_code=415,
             code="unsupported_file_type",
         )
     ctype, _magic = detected
 
     if content_type and content_type != ctype:
-        raise AppError(
-            "File content does not match its declared type",
-            status_code=422,
-            code="type_mismatch",
-        )
+        # Allow generic text/plain or octet-stream from clients for txt/csv/docx
+        if not (
+            (ctype in ("text/plain", "text/csv") and content_type in ("text/plain", "text/csv", "application/octet-stream"))
+            or (ctype == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" and "word" in content_type)
+        ):
+            raise AppError(
+                "File content does not match its declared type",
+                status_code=422,
+                code="type_mismatch",
+            )
 
     ext = Path(filename).suffix.lower()
-    if ext not in ALLOWED_UPLOADS[ctype][0]:
+    if ctype in ALLOWED_UPLOADS and ext not in ALLOWED_UPLOADS[ctype][0]:
         raise AppError("Unsupported file extension", status_code=422, code="unsupported_extension")
 
     return ctype

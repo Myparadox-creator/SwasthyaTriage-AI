@@ -1,13 +1,13 @@
-"""Automated tests for Brevo Transactional Email System.
+"""Automated tests for the transactional email system (Gmail SMTP + Resend).
 
 Covers:
 - Template rendering for all 9 healthcare transactional email templates
-- Brevo client mock & live request payload structuring
+- Gmail SMTP and Resend client mock & live request payload structuring
 - Password reset token hashing & single-use expiry lifecycle
 - Email verification token lifecycle
 - Generic password reset endpoint (preventing user enumeration)
 - Admin email endpoints RBAC & test email dispatch
-- Brevo transactional webhook delivery event processing
+- Resend (Svix-signed) transactional webhook delivery event processing
 """
 
 from __future__ import annotations
@@ -25,7 +25,9 @@ from database.session import SessionLocal
 from middleware.ratelimit import limiter
 from models import User
 from models.email import EmailLog, EmailVerificationToken, PasswordResetToken
-from services.email.brevo import BrevoClient
+from services.email import email_provider_info
+from services.email.gmail import GmailSmtpClient
+from services.email.resend import ResendClient
 from services.email.service import (
     create_and_send_password_reset_email,
     create_and_send_verification_email,
@@ -99,13 +101,13 @@ def test_all_templates_render_successfully():
 
 
 # ==========================================
-# 2. BREVO CLIENT UNIT TESTS
+# 2. RESEND CLIENT UNIT TESTS
 # ==========================================
 
 
-def test_brevo_client_mock_mode():
-    """BrevoClient in mock mode simulates delivery without external network."""
-    client = BrevoClient(api_key="mock-key", delivery_mode="mock")
+def test_resend_client_mock_mode():
+    """ResendClient in mock mode simulates delivery without external network."""
+    client = ResendClient(api_key="mock-key", delivery_mode="mock")
     res = client.send_email(
         recipient_email="test.recipient@swasthyaflow.gov.in",
         recipient_name="Test Recipient",
@@ -118,9 +120,35 @@ def test_brevo_client_mock_mode():
     assert res["messageId"].startswith("mock-")
 
 
-def test_brevo_client_payload_structure(monkeypatch):
-    """Brevo client formats JSON payload exactly according to Brevo SMTP API specification."""
-    client = BrevoClient(
+def test_gmail_client_mock_mode():
+    """GmailSmtpClient without credentials (or in mock mode) simulates delivery."""
+    client = GmailSmtpClient(
+        username="", app_password="", delivery_mode="mock"
+    )
+    assert client.is_mock_mode() is True
+    res = client.send_email(
+        recipient_email="test.recipient@swasthyaflow.gov.in",
+        recipient_name="Test Recipient",
+        subject="Welcome Test",
+        html_content="<p>Test Content</p>",
+        text_content="Test Content",
+        tags=["welcome"],
+    )
+    assert "messageId" in res
+    assert res["messageId"].startswith("mock-")
+
+
+def test_gmail_client_requires_credentials_for_live_mode(monkeypatch):
+    """Live mode with no App Password falls back to mock instead of failing."""
+    monkeypatch.setattr(settings, "gmail_smtp_user", "")
+    monkeypatch.setattr(settings, "gmail_smtp_app_password", "")
+    client = GmailSmtpClient(username="", app_password="", delivery_mode="live")
+    assert client.is_mock_mode() is True
+
+
+def test_resend_client_payload_structure(monkeypatch):
+    """Resend client formats JSON payload exactly according to the Resend Email API specification."""
+    client = ResendClient(
         api_key="real-simulated-key",
         sender_email="noreply@swasthyaflow.gov.in",
         sender_name="SwasthyaFlow AI",
@@ -133,10 +161,10 @@ def test_brevo_client_payload_structure(monkeypatch):
     captured_json = None
 
     class MockResponse:
-        status_code = 201
+        status_code = 200
 
         def json(self):
-            return {"messageId": "<202610091200.brevo.test@smtp-relay.brevo.com>"}
+            return {"id": "4ef10796-e0a9-4b4b-9d6d-6e4b6a0f7f2c"}
 
     class MockHttpxClient:
         def __init__(self, *args, **kwargs):
@@ -167,16 +195,36 @@ def test_brevo_client_payload_structure(monkeypatch):
         tags=["encounter_assignment"],
     )
 
-    assert "messageId" in res
-    assert res["messageId"] == "<202610091200.brevo.test@smtp-relay.brevo.com>"
-    assert captured_url == "https://api.brevo.com/v3/smtp/email"
-    assert captured_headers["api-key"] == "real-simulated-key"
+    assert res["messageId"] == "4ef10796-e0a9-4b4b-9d6d-6e4b6a0f7f2c"
+    assert captured_url == "https://api.resend.com/emails"
+    assert captured_headers["Authorization"] == "Bearer real-simulated-key"
     assert captured_headers.get("Content-Type") == "application/json"
-    assert captured_json["sender"]["email"] == "noreply@swasthyaflow.gov.in"
-    assert captured_json["sender"]["name"] == "SwasthyaFlow AI"
-    assert captured_json["to"][0]["email"] == "clinician@health.odisha.gov.in"
-    assert captured_json["replyTo"]["email"] == "support@swasthyaflow.gov.in"
-    assert captured_json["tags"] == ["encounter_assignment"]
+    assert captured_json["from"] == "SwasthyaFlow AI <noreply@swasthyaflow.gov.in>"
+    assert captured_json["to"] == ["clinician@health.odisha.gov.in"]
+    assert captured_json["reply_to"] == "support@swasthyaflow.gov.in"
+    assert captured_json["tags"] == [{"name": "category", "value": "encounter_assignment"}]
+
+
+def test_resend_signature_verification():
+    """Svix HMAC signature verification accepts valid signatures and rejects tampered ones."""
+    import base64
+    import hashlib
+    import hmac
+
+    from api.email_admin import verify_resend_signature
+
+    raw_secret = b"super-secret-signing-key-0123456789"
+    secret = "whsec_" + base64.b64encode(raw_secret).decode()
+    svix_id = "msg_test123"
+    svix_ts = "1700000000"
+    body = b'{"type":"email.delivered","data":{"email_id":"abc"}}'
+
+    signed = f"{svix_id}.{svix_ts}.".encode() + body
+    sig = base64.b64encode(hmac.new(raw_secret, signed, hashlib.sha256).digest()).decode()
+
+    assert verify_resend_signature(secret, svix_id, svix_ts, f"v1,{sig}", body) is True
+    assert verify_resend_signature(secret, svix_id, svix_ts, "v1,deadbeef", body) is False
+    assert verify_resend_signature(secret, svix_id, svix_ts, f"v1,{sig}", body + b"x") is False
 
 
 # ==========================================
@@ -271,6 +319,36 @@ def test_login_dispatches_welcome_email(client: TestClient):
     assert logs[-1].status in ("SENT", "PENDING")
 
 
+def test_login_dispatches_welcome_email_for_staff_role(client: TestClient):
+    """Every role (e.g. SUPER_ADMIN) receives a welcome email immediately on login."""
+    with SessionLocal() as db:
+        user = db.scalar(select(User).where(User.email == SUPER_ADMIN))
+        assert user is not None
+        user.password_hash = hash_password(PASSWORD)
+        db.commit()
+
+        welcome_count = len(
+            db.scalars(
+                select(EmailLog).where(
+                    EmailLog.recipient_email == SUPER_ADMIN,
+                    EmailLog.template_name == "welcome",
+                )
+            ).all()
+        )
+
+    login(client, SUPER_ADMIN)
+
+    with SessionLocal() as db:
+        logs = db.scalars(
+            select(EmailLog).where(
+                EmailLog.recipient_email == SUPER_ADMIN,
+                EmailLog.template_name == "welcome",
+            )
+        ).all()
+    assert len(logs) == welcome_count + 1
+    assert logs[-1].status in ("SENT", "PENDING")
+
+
 def test_forgot_password_generic_response_prevents_enumeration(client: TestClient):
     """Both existing and non-existing accounts return identical generic response."""
     # Existing user
@@ -345,7 +423,7 @@ def test_admin_email_endpoints_rbac(client: TestClient):
     status_ok = client.get("/api/admin/email/status", headers=auth(super_token))
     assert status_ok.status_code == 200
     status_data = status_ok.json()
-    assert status_data["provider"] == "Brevo Transactional Email"
+    assert status_data["provider"] == email_provider_info()["provider"]
     assert "recent_stats" in status_data
     assert len(status_data["templates"]) == 9
 
@@ -360,36 +438,38 @@ def test_admin_email_endpoints_rbac(client: TestClient):
 
 
 # ==========================================
-# 6. BREVO WEBHOOK DELIVERY EVENTS
+# 6. RESEND WEBHOOK DELIVERY EVENTS
 # ==========================================
 
 
-def test_brevo_webhook_event_processing(client: TestClient):
-    """Incoming Brevo transactional webhook updates email log state idempotently."""
+def test_resend_webhook_event_processing(client: TestClient):
+    """Incoming Resend transactional webhook updates email log state idempotently."""
     import uuid
 
-    unique_msg_id = f"<webhook-test-{uuid.uuid4().hex[:12]}@brevo.com>"
+    unique_msg_id = f"msg-webhook-{uuid.uuid4().hex[:12]}"
     with SessionLocal() as db:
         log = EmailLog(
             recipient_email="patient.test@swasthyatriage.demo",
             template_name="welcome",
             subject="Welcome to SwasthyaFlow AI",
-            brevo_message_id=unique_msg_id,
+            provider_message_id=unique_msg_id,
             status="SENT",
         )
         db.add(log)
         db.commit()
         db.refresh(log)
 
-    # Simulate Brevo delivery webhook event
+    # Simulate Resend delivery webhook event
     payload = {
-        "event": "delivered",
-        "email": "patient.test@swasthyatriage.demo",
-        "message-id": unique_msg_id,
-        "date": "2026-10-09 12:00:00",
+        "type": "email.delivered",
+        "created_at": "2026-10-09T12:00:00.000Z",
+        "data": {
+            "email_id": unique_msg_id,
+            "to": ["patient.test@swasthyatriage.demo"],
+        },
     }
 
-    res = client.post("/api/webhooks/brevo", json=payload)
+    res = client.post("/api/webhooks/resend", json=payload)
     assert res.status_code == 200
     assert res.json()["status"] in ("ok", "processed")
 

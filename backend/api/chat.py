@@ -193,41 +193,43 @@ def send_chat_message(
     if settings.gemini_enabled:
         try:
             from models.enums import Provenance
-            from services.gemini.client import GeminiClient
+            from services.gemini.client import GeminiClient, is_circuit_open
 
-            gemini = GeminiClient()
-            prior_ctx = {
-                "chief_concern": case.chief_concern,
-                "symptoms": [s.term for s in case.symptoms],
-                "measurements": [f"{m.name}: {m.value} {m.unit or ''}" for m in case.measurements],
-                "duration_days": ctx.get("duration_days"),
-            }
-            lang_code = case.language.value if case.language else "en"
-            triage_res = gemini.triage_voice_turn(
-                user_text=payload.message,
-                language=lang_code,
-                prior_context=prior_ctx,
-            )
-            if triage_res and isinstance(triage_res, dict):
-                gemini_reply = triage_res.get("reply_text")
-                if gemini_reply:
-                    reply = gemini_reply.strip()
-                # Apply extracted symptoms from Gemini
-                for sym in triage_res.get("extracted_symptoms", []):
-                    if sym and sym.lower() not in {s.term.lower() for s in case.symptoms}:
-                        db.add(
-                            CaseSymptom(
-                                case_id=case.id,
-                                term=sym.title(),
-                                normalized_term=sym.lower(),
-                                source=Provenance.AI_EXTRACTED,
-                                collected_via=channel,
-                                verified=False,
+            if not is_circuit_open():
+                gemini = GeminiClient()
+                prior_ctx = {
+                    "chief_concern": case.chief_concern,
+                    "symptoms": [s.term for s in case.symptoms],
+                    "measurements": [f"{m.name}: {m.value} {m.unit or ''}" for m in case.measurements],
+                    "duration_days": ctx.get("duration_days"),
+                }
+                lang_code = case.language.value if case.language else "en"
+                triage_res = gemini.triage_voice_turn(
+                    user_text=payload.message,
+                    language=lang_code,
+                    prior_context=prior_ctx,
+                    is_interactive=True,
+                )
+                if triage_res and isinstance(triage_res, dict):
+                    gemini_reply = triage_res.get("reply_text")
+                    if gemini_reply:
+                        reply = gemini_reply.strip()
+                    # Apply extracted symptoms from Gemini
+                    for sym in triage_res.get("extracted_symptoms", []):
+                        if sym and sym.lower() not in {s.term.lower() for s in case.symptoms}:
+                            db.add(
+                                CaseSymptom(
+                                    case_id=case.id,
+                                    term=sym.title(),
+                                    normalized_term=sym.lower(),
+                                    source=Provenance.AI_EXTRACTED,
+                                    collected_via=channel,
+                                    verified=False,
+                                )
                             )
-                        )
-                        changes["added_symptoms"].append(sym)
-                if triage_res.get("is_emergency"):
-                    case.priority = Priority.URGENT_REVIEW
+                            changes["added_symptoms"].append(sym)
+                    if triage_res.get("is_emergency"):
+                        case.priority = Priority.URGENT_REVIEW
         except Exception as e:
             logger.warning("Gemini chat triage fallback to deterministic bank: %s", e)
 

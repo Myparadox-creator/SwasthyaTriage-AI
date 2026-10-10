@@ -31,6 +31,7 @@ import AppPermissionsModal from '../../../components/AppPermissionsModal'
 import {
   getStoredPermissions,
   requestLocationPermission,
+  reverseGeocodeCoords,
   type PermissionState,
 } from '../../../lib/permissions'
 
@@ -168,21 +169,19 @@ export default function NearbyPharmaciesPage() {
 
     if (perms.location === 'granted' && perms.coords) {
       setUserLocation(perms.coords)
-      setLocationName('Your Live GPS Coordinates')
+      void reverseGeocodeCoords(perms.coords[0], perms.coords[1]).then(setLocationName)
       void loadFacilities({ lat: perms.coords[0], lng: perms.coords[1] })
-    } else if (typeof navigator !== 'undefined' && navigator.geolocation && perms.location === 'granted') {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude]
-          setUserLocation(coords)
-          setLocationName('Your Live GPS Coordinates')
-          void loadFacilities({ lat: coords[0], lng: coords[1] })
-        },
-        () => {
-          void loadFacilities({ lat: 20.287, lng: 85.835 })
-        },
-        { timeout: 7000 }
-      )
+    } else if (perms.location === 'granted') {
+      void requestLocationPermission().then(async (res) => {
+        if (res.coords) {
+          setUserLocation(res.coords)
+          const name = res.locationName || (await reverseGeocodeCoords(res.coords[0], res.coords[1]))
+          setLocationName(name)
+          void loadFacilities({ lat: res.coords[0], lng: res.coords[1] })
+        } else {
+          void loadFacilities({ lat: 20.287, lng: 85.835, query: 'Bhubaneswar' })
+        }
+      })
     } else {
       // Default to initial view
       void loadFacilities({ lat: 20.287, lng: 85.835, query: 'Bhubaneswar' })
@@ -226,19 +225,42 @@ export default function NearbyPharmaciesPage() {
   // Trigger Live GPS
   const handleUseCurrentGPS = async () => {
     setIsSearchingLocation(true)
-    setSearchFeedback('Requesting GPS satellite coordinates...')
+    setSearchFeedback('Acquiring live location (satellite GPS / network)...')
 
     const res = await requestLocationPermission()
     setLocationPermission(res.status)
 
-    if (res.status === 'granted' && res.coords) {
-      setUserLocation(res.coords)
-      setLocationName('Your Live GPS Coordinates')
-      await loadFacilities({ lat: res.coords[0], lng: res.coords[1] })
-      setSearchFeedback('✓ Live GPS location locked successfully!')
-      setTimeout(() => setSearchFeedback(null), 4000)
+    if (res.coords) {
+      const coords = res.coords
+      setUserLocation(coords)
+
+      // Friendly location name from reverse geocoding or IP lookup
+      let friendlyName = res.locationName
+      if (!friendlyName) {
+        friendlyName = await reverseGeocodeCoords(coords[0], coords[1])
+      }
+      setLocationName(friendlyName)
+
+      // Smoothly animate map to user location
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.flyTo(coords, 14, { duration: 1.2 })
+      }
+
+      await loadFacilities({ lat: coords[0], lng: coords[1] })
+
+      const sourceLabel =
+        res.source === 'gps_high_accuracy'
+          ? 'Live Satellite GPS'
+          : res.source === 'gps_standard'
+          ? 'Wi-Fi / Network GPS'
+          : 'Network IP'
+
+      setSearchFeedback(`✓ Location locked via ${sourceLabel}: ${friendlyName}`)
+      setTimeout(() => setSearchFeedback(null), 5000)
     } else {
-      setSearchFeedback('Location access was not granted. You can search any city across India below.')
+      setSearchFeedback(
+        res.error || 'Location access was not granted. You can search any city across India below.'
+      )
       setShowPermissionsModal(true)
     }
     setIsSearchingLocation(false)

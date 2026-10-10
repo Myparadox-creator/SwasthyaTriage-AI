@@ -48,15 +48,30 @@ function headers(forJson: boolean, hasBody: boolean): Headers {
 
 async function parseError(res: Response): Promise<ApiError> {
   let code = 'unknown_error'
-  let message = 'Something went wrong. Please try again.'
+  let message =
+    res.status === 502 || res.status === 503 || res.status === 504
+      ? `The server is unreachable (HTTP ${res.status}). Please make sure the backend is running, then try again.`
+      : `Request failed (HTTP ${res.status}). Please try again.`
   let details: Record<string, unknown> = {}
   try {
     const body = await res.json()
-    code = body.error?.code ?? code
-    message = body.error?.message ?? message
-    details = body.error?.details ?? {}
+    if (body && typeof body === 'object') {
+      const err = (body as Record<string, unknown>).error
+      if (err && typeof err === 'object') {
+        const e = err as Record<string, unknown>
+        code = (e.code as string) ?? code
+        message = (e.message as string) ?? message
+        details = (e.details as Record<string, unknown>) ?? {}
+      } else if (typeof err === 'string') {
+        message = err
+      } else if (typeof (body as Record<string, unknown>).detail === 'string') {
+        // FastAPI default HTTPException envelope: { "detail": "..." }
+        message = (body as Record<string, unknown>).detail as string
+        code = `http_${res.status}`
+      }
+    }
   } catch {
-    /* non-json body */
+    /* non-JSON body (proxy/HTML error page) — keep the status-based message */
   }
   return new ApiError(res.status, code, message, details)
 }

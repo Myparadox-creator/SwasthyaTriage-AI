@@ -97,20 +97,31 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   loginWithClerk: async (token, meta) => {
-    const payload =
+    const role = typeof meta === 'string' ? meta : meta?.role
+    const identity =
       typeof meta === 'string'
-        ? { token, role: meta }
-        : {
-            token,
-            role: meta?.role,
-            email: meta?.email,
-            full_name: meta?.full_name,
-            clerk_user_id: meta?.clerk_user_id,
-          }
-    const res = await api<TokenResponse>('/api/auth/clerk', {
-      method: 'POST',
-      body: payload,
-    })
+        ? {}
+        : { email: meta?.email, full_name: meta?.full_name, clerk_user_id: meta?.clerk_user_id }
+
+    const exchange = (requestedRole?: Role) =>
+      api<TokenResponse>('/api/auth/clerk', {
+        method: 'POST',
+        body: { token, role: requestedRole, ...identity },
+      })
+
+    let res: TokenResponse
+    try {
+      res = await exchange(role)
+    } catch (err) {
+      // A returning social user may open the wrong portal tab. The backend keeps
+      // their role fixed, so retry without a role to sign them into their
+      // registered portal instead of blocking "Continue with Google".
+      if (err instanceof ApiError && err.code === 'role_mismatch') {
+        res = await exchange(undefined)
+      } else {
+        throw err
+      }
+    }
     applySession(res.access_token, res.user)
     return res.user
   },

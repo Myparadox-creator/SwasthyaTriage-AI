@@ -18,45 +18,61 @@ if TYPE_CHECKING:
     from models import User
 
 
+import time
+
+_RULES_CACHE: dict[int | None, tuple[float, list[RuleSpec]]] = {}
+
+
+def clear_rules_cache() -> None:
+    global _RULES_CACHE
+    _RULES_CACHE.clear()
+
+
 def load_rule_specs(db: Session, facility_id: int | None = None) -> list[RuleSpec]:
-    """Global rules + facility-specific rules."""
+    """Global rules + facility-specific rules with in-memory TTL caching."""
+    global _RULES_CACHE
+    now = time.time()
+    cached = _RULES_CACHE.get(facility_id)
+    if cached and (now - cached[0]) < 60.0:
+        return cached[1]
+
     stmt = select(SafetyRule).where(SafetyRule.is_active.is_(True))
     if facility_id is not None:
         stmt = stmt.where(
             SafetyRule.facility_id.is_(None) | (SafetyRule.facility_id == facility_id)
         )
     rules = db.scalars(stmt).all()
-    return [RuleSpec.from_rule(r) for r in rules]
+    specs = [RuleSpec.from_rule(r) for r in rules]
+    _RULES_CACHE[facility_id] = (now, specs)
+    return specs
 
 
-def run_safety_evaluation(db: Session, case: Case, extraction: dict) -> SafetyEvaluation:
-    """Evaluate rules for this case and persist any new signals.
-
-    Signals are idempotent per (case, rule_code): re-running does not duplicate.
-    """
+def run_safety_evaluation(
+    db: Session,
+    case: Case,
+    extraction: dict,
+    *,
+    existing_rule_codes: set[str] | None = None,
+) -> SafetyEvaluation:
+    """Evaluate rules for this case and persist any new signals without duplicate DB queries."""
     specs = load_rule_specs(db, case.facility_id)
     evaluation = evaluate_safety(specs, extraction)
 
-    existing = {
-        s.rule_code
-        for s in db.scalars(select(SafetySignal).where(SafetySignal.case_id == case.id)).all()
-    }
+    existing = (
+        existing_rule_codes
+        if existing_rule_codes is not None
+        else {
+            s.rule_code
+            for s in db.scalars(select(SafetySignal).where(SafetySignal.case_id == case.id)).all()
+        }
+    )
 
-    rules_by_code = {
-        r.code: r
-        for r in db.scalars(
-            select(SafetyRule).where(SafetyRule.code.in_([s.rule_code for s in evaluation.signals]))
-        ).all()
-    }
-
-    for signal in evaluation.signals:
-        if signal.rule_code in existing:
-            continue
-        rule = rules_by_code.get(signal.rule_code)
+    new_signals = [s for s in evaluation.signals if s.rule_code not in existing]
+    for signal in new_signals:
         db.add(
             SafetySignal(
                 case_id=case.id,
-                rule_id=rule.id if rule else None,
+                rule_id=signal.rule_id,
                 rule_code=signal.rule_code,
                 label=signal.label,
                 message=signal.message,
@@ -71,7 +87,8 @@ def run_safety_evaluation(db: Session, case: Case, extraction: dict) -> SafetyEv
     if ladder.index(evaluation.priority) > ladder.index(case.priority):
         case.priority = evaluation.priority
 
-    db.flush()
+    if new_signals:
+        db.flush()
     return evaluation
 
 
@@ -131,7 +148,7 @@ def reevaluate_case(
         for s in db.scalars(select(SafetySignal).where(SafetySignal.case_id == case.id)).all()
     }
     extraction = build_case_extraction(case, extra_free_text=extra_free_text)
-    evaluation = run_safety_evaluation(db, case, extraction)
+    evaluation = run_safety_evaluation(db, case, extraction, existing_rule_codes=existing)
 
     for signal in evaluation.signals:
         if signal.rule_code in existing:

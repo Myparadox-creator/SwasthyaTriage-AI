@@ -839,7 +839,9 @@ The backend includes 20 test modules covering security, deterministic ESI logic,
 
 ```bash
 cd backend
-pytest -v
+$env:PYTHONPATH='.'  # PowerShell
+pytest tests/test_document_rag.py -v
+pytest tests/test_documents_api.py -v
 ```
 
 **Key Test Suites**:

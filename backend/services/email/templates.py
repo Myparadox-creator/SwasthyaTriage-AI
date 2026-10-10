@@ -99,7 +99,7 @@ BASE_HTML_WRAPPER = """<!DOCTYPE html>
 def render_email_template(
     template_name: str, context: dict
 ) -> tuple[str, str, str]:
-    """Renders (subject, html_content, text_content) for any of the 9 Brevo transactional templates."""
+    """Renders (subject, html_content, text_content) for any of the 9 Resend transactional templates."""
     name = html.escape(context.get("name") or "User")
     app_url = context.get("app_url", "http://localhost:5173")
 

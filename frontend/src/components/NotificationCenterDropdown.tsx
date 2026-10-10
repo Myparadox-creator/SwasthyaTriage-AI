@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertCircle,
@@ -10,6 +10,7 @@ import {
   ShieldAlert,
   X,
 } from 'lucide-react'
+import { api } from '../lib/api'
 
 export interface AppNotification {
   id: string
@@ -75,6 +76,58 @@ export default function NotificationCenterDropdown() {
   const [filter, setFilter] = useState<'ALL' | 'CRITICAL' | 'CLARIFICATION'>('ALL')
   const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS)
 
+  const fetchLiveNotifications = async () => {
+    try {
+      const res = await api<{
+        items: Array<{
+          id: number
+          type: string
+          title: string
+          body: string | null
+          case_id: number | null
+          read_at: string | null
+          created_at: string
+        }>
+        unread_count: number
+      }>('/api/notifications', { params: { per_page: 20 } })
+
+      if (res?.items && res.items.length > 0) {
+        const liveItems: AppNotification[] = res.items.map((item) => {
+          const isCrit =
+            item.title.toLowerCase().includes('emergency') ||
+            item.title.toLowerCase().includes('critical') ||
+            item.title.toLowerCase().includes('red') ||
+            (item.body && item.body.toLowerCase().includes('critical'))
+          return {
+            id: String(item.id),
+            category: item.type === 'case_submitted' ? 'NEW_ENCOUNTER' : 'SAFETY_ESCALATION',
+            encounterId: item.case_id ? `CASE-${item.case_id}` : undefined,
+            title: item.title,
+            description: item.body || 'New clinical event recorded.',
+            priority: isCrit ? 'CRITICAL' : 'URGENT',
+            timestamp: new Date(item.created_at).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            read: Boolean(item.read_at),
+            linkTo: item.case_id ? `/app/hcw/cases/${item.case_id}` : '/app/hcw/queue',
+          }
+        })
+        setNotifications(liveItems)
+      }
+    } catch {
+      // Fallback silently to existing list
+    }
+  }
+
+  useEffect(() => {
+    void fetchLiveNotifications()
+    const timer = setInterval(() => {
+      void fetchLiveNotifications()
+    }, 12000)
+    return () => clearInterval(timer)
+  }, [])
+
   const unreadCount = notifications.filter((n) => !n.read).length
   const criticalCount = notifications.filter((n) => n.priority === 'CRITICAL' && !n.read).length
 
@@ -84,12 +137,20 @@ export default function NotificationCenterDropdown() {
     return true
   })
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    try {
+      await api('/api/notifications/read-all', { method: 'POST' })
+    } catch {}
   }
 
-  const markAsRead = (id: string) => {
+  const markAsRead = async (id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+    if (/^\d+$/.test(id)) {
+      try {
+        await api(`/api/notifications/${id}/read`, { method: 'POST' })
+      } catch {}
+    }
   }
 
   return (

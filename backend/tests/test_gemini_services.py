@@ -23,7 +23,8 @@ PNG_1PX = bytes.fromhex(
 )
 
 
-def test_factory_returns_mock_without_api_key():
+def test_factory_returns_mock_without_api_key(monkeypatch):
+    monkeypatch.setattr("config.settings.gemini_api_key", None)
     assert get_provider().name == "mock"
 
 
