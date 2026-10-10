@@ -17,6 +17,7 @@ TEMPLATE_REGISTRY = [
     "clarification_request",
     "referral_status",
     "security_alert",
+    "sonam_call_request",
 ]
 
 # Base responsive HTML email wrapper with medical SaaS design tokens
@@ -363,6 +364,51 @@ Time: {time_str}
 Details: {details}
 
 If you did not authorize this action, please contact {SUPPORT_EMAIL} immediately.
+"""
+
+    elif template_name == "sonam_call_request":
+        requester = html.escape(str(context.get("requester_name") or "A user"))
+        requester_email = html.escape(str(context.get("requester_email") or "—"))
+        phone = html.escape(str(context.get("phone") or "Not provided"))
+        language = html.escape(str(context.get("language") or "en"))
+        purpose = html.escape(str(context.get("purpose") or "Not specified"))
+        case_ref = html.escape(str(context.get("case_number") or "—"))
+        source = html.escape(str(context.get("source") or "Patient portal"))
+        time_str = html.escape(str(context.get("time_str") or "Just now"))
+
+        subject = f"Sonam Call Request — {requester} wants to talk to Sonam"
+        body_html = f"""
+        <h2 class="greeting">Sonam Call Request</h2>
+        <p class="content-text">
+          <strong>{requester}</strong> has requested to talk to the <strong>Sonam</strong> AI voice agent.
+          Please <strong>connect them directly</strong>.
+        </p>
+        <div class="highlight-card">
+          <strong>Requester:</strong> {requester}<br>
+          <strong>Phone:</strong> {phone}<br>
+          <strong>Email:</strong> {requester_email}<br>
+          <strong>Language:</strong> {language}<br>
+          <strong>Purpose:</strong> {purpose}<br>
+          <strong>Case:</strong> {case_ref}<br>
+          <strong>Source:</strong> {source}<br>
+          <strong>Time:</strong> {time_str}
+        </div>
+        <p class="content-text">
+          Action required: contact the requester on the number above so they can talk to Sonam.
+        </p>
+        """
+        text = f"""Sonam Call Request
+
+{requester} wants to talk to the Sonam AI voice agent. Please connect them directly.
+
+Requester: {requester}
+Phone: {phone}
+Email: {requester_email}
+Language: {language}
+Purpose: {purpose}
+Case: {case_ref}
+Source: {source}
+Time: {time_str}
 """
 
     else:

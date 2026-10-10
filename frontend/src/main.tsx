@@ -6,6 +6,17 @@ import './index.css'
 import App from './App.tsx'
 import { ensureSnapServeWidgetLoaded } from './lib/snapserve'
 
+// Suppress benign Clerk development-key advisory warning in browser console
+if (typeof window !== 'undefined') {
+  const origWarn = console.warn
+  console.warn = (...args: unknown[]) => {
+    if (typeof args[0] === 'string' && args[0].includes('Clerk has been loaded with development keys')) {
+      return
+    }
+    origWarn.apply(console, args)
+  }
+}
+
 // Initialize SnapServe widget
 ensureSnapServeWidgetLoaded()
 

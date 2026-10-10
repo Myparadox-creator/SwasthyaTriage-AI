@@ -14,10 +14,10 @@ class TranscriptOut(BaseModel):
 
     id: int
     sequence: int
-    role: MessageRole
+    role: str
     content: str
     language: str | None = None
-    created_at: datetime
+    created_at: datetime | None = None
 
 
 class TeleCallCreateRequest(BaseModel):

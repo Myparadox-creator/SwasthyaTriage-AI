@@ -5,11 +5,13 @@ from __future__ import annotations
 from config import settings
 from services.telephony.base import TelephonyProvider
 from services.telephony.mock import MockTelephonyProvider
+from services.telephony.snapserve import SnapServeProvider
 from services.telephony.videosdk import VideoSDKProvider
 
 _PROVIDERS: dict[str, type[TelephonyProvider]] = {
     "mock": MockTelephonyProvider,
     "videosdk": VideoSDKProvider,
+    "snapserve": SnapServeProvider,
 }
 
 

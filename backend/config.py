@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     gemini_live_model: str = "gemini-2.5-flash-native-audio-preview-12-2025"
 
     # Telephony
-    telephony_provider: str = "mock"  # mock | videosdk
+    telephony_provider: str = "mock"  # mock | videosdk | snapserve
     videosdk_auth_token: str = ""
     videosdk_api_key: str = ""
     videosdk_secret_key: str = ""
@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_phone_number: str = ""
+
+    # SnapServe AI voice-agent calling (real outbound PSTN calls).
+    # The agent runs the live conversation; we mirror status/transcript back.
+    snapserve_api_key: str = ""
+    snapserve_agent_id: int | None = None
+    snapserve_from_number: str = ""
+    snapserve_base_url: str = "https://app.snapserve.ai/api"
 
     # Patient callbacks + telephony webhooks
     # HMAC secret used to verify provider call-status webhooks. Empty => endpoint disabled.
@@ -76,6 +83,9 @@ class Settings(BaseSettings):
     resend_sender_name: str = "SwasthyaFlow AI"
     resend_reply_to_email: str = "support@swasthyatriage.gov.in"
     resend_webhook_secret: str = ""
+
+    # Admin alerts: notified whenever a user wants to talk to the Sonam voice agent.
+    admin_notification_email: str = "abhisheksahu1018@gmail.com"
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -113,6 +123,8 @@ class Settings(BaseSettings):
                 self.videosdk_auth_token
                 or (self.videosdk_api_key and self.videosdk_secret_key)
             )
+        if provider == "snapserve":
+            return bool(self.snapserve_api_key and self.snapserve_agent_id)
         return False
 
     @property

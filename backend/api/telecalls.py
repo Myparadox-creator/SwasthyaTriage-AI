@@ -9,6 +9,8 @@ Follows SwasthyaTriage AI principles:
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -27,9 +29,12 @@ from schemas.telephony import (
     TeleCallTurnResponse,
     TranscriptOut,
 )
+from services.email.service import send_sonam_call_request_email
 from services.telephony.service import get_telephony_provider
 
 router = APIRouter(prefix="/api/telecalls", tags=["telephony"])
+
+logger = logging.getLogger("swasthyatriage.telecalls")
 
 STAFF_ROLES = (Role.HEALTHCARE_WORKER, Role.FACILITY_ADMIN, Role.SUPER_ADMIN)
 
@@ -47,12 +52,29 @@ def _telecall_or_403(db: Session, user: User, call_id: int | str) -> tuple[TeleC
     return call, case
 
 
-def _to_out(call: TeleCall, case: Case, patient: Patient | None) -> TeleCallOut:
+def _to_out(call: TeleCall, case: Case | None, patient: Patient | None) -> TeleCallOut:
     extracted_data = {
         key: value
         for key, value in (call.extracted_data or {}).items()
         if key != "vsdk_token"
-    }
+    } if isinstance(call.extracted_data, dict) else {}
+
+    transcripts_out: list[TranscriptOut] = []
+    for t in (call.transcripts or []):
+        try:
+            transcripts_out.append(
+                TranscriptOut(
+                    id=t.id,
+                    sequence=t.sequence,
+                    role=str(getattr(t.role, "value", t.role)),
+                    content=t.content or "",
+                    language=getattr(t, "language", None),
+                    created_at=getattr(t, "created_at", None),
+                )
+            )
+        except Exception:
+            continue
+
     return TeleCallOut(
         id=call.id,
         public_id=call.public_id,
@@ -61,17 +83,17 @@ def _to_out(call: TeleCall, case: Case, patient: Patient | None) -> TeleCallOut:
         patient_name=patient.full_name if patient else "Unknown",
         phone_number=call.phone_number,
         status=call.status,
-        direction=call.direction,
+        direction=call.direction or "OUTBOUND",
         reason=call.reason,
         questions=call.questions or [],
-        provider=call.provider,
+        provider=call.provider or "mock",
         duration_seconds=call.duration_seconds,
         started_at=call.started_at,
         ended_at=call.ended_at,
         extracted_data=extracted_data,
         error_detail=call.error_detail,
-        transcripts=[TranscriptOut.model_validate(t) for t in call.transcripts],
-        created_at=call.created_at,
+        transcripts=transcripts_out,
+        created_at=call.created_at or datetime.now().astimezone(),
     )
 
 
@@ -129,9 +151,13 @@ def list_telecalls(
 
     out_items = []
     for c in rows:
-        cs = db.get(Case, c.case_id)
-        pt = db.get(Patient, cs.patient_id) if cs else None
-        out_items.append(_to_out(c, cs, pt))
+        try:
+            cs = db.get(Case, c.case_id) if c.case_id else None
+            pt = db.get(Patient, cs.patient_id) if cs and cs.patient_id else None
+            out_items.append(_to_out(c, cs, pt))
+        except Exception as ex:
+            logger.warning("Failed to serialize telecall %s: %s", c.id, ex)
+            continue
 
     return TeleCallListResponse(items=out_items, total=total)
 
@@ -208,8 +234,23 @@ def complete_telecall(
 ):
     call, case = _telecall_or_403(db, user, call_id)
     if call.status == CallStatus.COMPLETED:
-        patient = db.get(Patient, case.patient_id)
-        return _to_out(call, case, patient)
+    patient = db.get(Patient, case.patient_id)
+
+    try:
+        send_sonam_call_request_email(
+            db,
+            requester_name=user.full_name,
+            requester_email=user.email,
+            phone=call.phone_number,
+            language=case.language.value if case.language else None,
+            purpose=call.reason,
+            case_number=case.case_number,
+            source="Staff console (Tele-consultations & Calls)",
+        )
+    except Exception:  # noqa: BLE001 - never block the tele-call on email failure
+        logger.exception("Admin Sonam-request email failed for call %s", call.public_id)
+
+    return _to_out(call, case, patient)
 
     provider = get_telephony_provider(call.provider)
     provider.complete_call(db=db, call=call, actor=user)

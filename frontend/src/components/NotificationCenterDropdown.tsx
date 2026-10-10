@@ -10,7 +10,7 @@ import {
   ShieldAlert,
   X,
 } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, getAccessToken } from '../lib/api'
 
 export interface AppNotification {
   id: string
@@ -77,6 +77,7 @@ export default function NotificationCenterDropdown() {
   const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS)
 
   const fetchLiveNotifications = async () => {
+    if (!getAccessToken()) return
     try {
       const res = await api<{
         items: Array<{
