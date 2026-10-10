@@ -43,13 +43,13 @@ export default function NewAssessment() {
         {t('common.back')}
       </button>
 
-      <div className="card mt-4 p-6 sm:p-8">
+      <div className="card mt-4 p-4 sm:p-6 lg:p-8">
         <div className="flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-800">
             <ShieldCheck className="h-6 w-6" />
           </span>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">{t('patient.new.title')}</h1>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{t('patient.new.title')}</h1>
             <p className="mt-1 text-sm text-slate-500">{t('patient.new.subtitle')}</p>
           </div>
         </div>
@@ -63,7 +63,7 @@ export default function NewAssessment() {
           ].map((key) => (
             <div key={key} className="flex items-start gap-3">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-700" />
-              <p className="text-sm text-slate-600">{t(key)}</p>
+              <p className="min-w-0 text-sm text-slate-600">{t(key)}</p>
             </div>
           ))}
         </div>
@@ -80,7 +80,7 @@ export default function NewAssessment() {
             onChange={(e) => setAccepted(e.target.checked)}
             className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-brand-700"
           />
-          <span className="text-sm text-slate-700">{t('patient.new.consentLabel')}</span>
+          <span className="min-w-0 text-sm text-slate-700">{t('patient.new.consentLabel')}</span>
         </label>
 
         {error && (

@@ -6,7 +6,7 @@ export default function SsoCallbackPage() {
   const { t } = useTranslation()
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-4 text-center text-slate-100">
+    <div className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-slate-950 px-4 text-center text-slate-100">
       <div className="pointer-events-none absolute h-72 w-72 rounded-full bg-teal-500/15 blur-3xl" />
       <div className="relative z-10 flex flex-col items-center space-y-4">
         <div className="relative flex h-20 w-20 items-center justify-center">

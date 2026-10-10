@@ -58,7 +58,7 @@ export default function SplashPage() {
       />
 
       <div
-        className={`relative z-10 mx-auto flex h-full w-full max-w-md flex-col px-6 py-8 transition-all duration-300 ${
+        className={`relative z-10 mx-auto flex h-full w-full max-w-md flex-col overflow-y-auto px-6 py-8 transition-all duration-300 ${
           fading ? 'pointer-events-none scale-[1.02] opacity-0' : 'scale-100 opacity-100'
         }`}
       >

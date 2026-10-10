@@ -191,18 +191,18 @@ export default function FacilityAdminDashboard() {
         <div className="pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-teal-500/20 blur-3xl" />
 
         <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3.5">
-            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-500 to-teal-400 text-slate-950 shadow-lg shadow-indigo-500/30">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-500 to-teal-400 text-slate-950 shadow-lg shadow-indigo-500/30">
               <Building className="h-7 w-7 text-slate-950" />
             </span>
-            <div>
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-indigo-400/30 bg-indigo-500/20 px-3 py-1 text-xs font-bold text-indigo-200 backdrop-blur-md">
+            <div className="min-w-0">
+              <div className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border border-indigo-400/30 bg-indigo-500/20 px-3 py-1 text-xs font-bold text-indigo-200 backdrop-blur-md">
                 <span>🏢 Facility Administration Console · Institutional Incharge</span>
               </div>
-              <h1 className="mt-2 text-2xl sm:text-3xl font-black text-white tracking-tight">
+              <h1 className="mt-2 text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight break-words">
                 {user.facility_name ?? 'Primary Health Centre'}
               </h1>
-              <p className="mt-1 text-xs sm:text-sm text-indigo-100/80">
+              <p className="mt-1 text-xs sm:text-sm text-indigo-100/80 break-words">
                 Facility Administrator: <strong className="text-white">{user.full_name}</strong> · Staff Duty & Roster, Operational Telemetry & Caseload Export
               </p>
             </div>
@@ -356,17 +356,17 @@ export default function FacilityAdminDashboard() {
       {/* TAB 2: STAFF MANAGEMENT */}
       {activeTab === 'staff' && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Facility Healthcare Staff</h2>
-              <p className="text-xs text-slate-500">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-slate-900 break-words">Facility Healthcare Staff</h2>
+              <p className="text-xs text-slate-500 break-words">
                 Authorize doctors, staff nurses, and facility admins for {user.facility_name}.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setIsAddStaffOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2 text-xs font-bold text-white shadow hover:bg-teal-800"
+              className="flex items-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2 text-xs font-bold text-white shadow hover:bg-teal-800 shrink-0"
             >
               <UserPlus className="h-4 w-4" />
               Add Staff Member
@@ -374,7 +374,7 @@ export default function FacilityAdminDashboard() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[760px] text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
                 <tr>
                   <th className="p-3">Staff Member</th>
@@ -415,7 +415,7 @@ export default function FacilityAdminDashboard() {
       {/* TAB 3: FACILITY CASES */}
       {activeTab === 'cases' && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-base font-bold text-slate-900">Facility Patient Cases</h2>
             <Link
               to="/app/hcw/queue"
@@ -426,7 +426,7 @@ export default function FacilityAdminDashboard() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[840px] text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
                 <tr>
                   <th className="p-3">Case ID</th>
@@ -482,7 +482,7 @@ export default function FacilityAdminDashboard() {
       {/* TAB 4: FOLLOW-UPS */}
       {activeTab === 'followups' && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-base font-bold text-slate-900">Follow-up Tasks & Tele-calls</h2>
             <Link
               to="/app/hcw/voice"
@@ -496,10 +496,10 @@ export default function FacilityAdminDashboard() {
             {followups?.items.map((fu) => (
               <div
                 key={fu.id}
-                className="flex items-center justify-between rounded-xl border border-slate-200 p-4"
+                className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div>
-                  <div className="flex items-center gap-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-bold text-slate-900">{fu.case_number}</span>
                     <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-800">
                       Channel: {fu.channel}
@@ -508,13 +508,13 @@ export default function FacilityAdminDashboard() {
                       Status: {fu.status}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-slate-600">
+                  <p className="mt-1 text-xs text-slate-600 break-words">
                     Reason: {fu.reason} · Requested items: {fu.items?.join(', ') || 'Vitals'}
                   </p>
                 </div>
                 <Link
                   to={`/app/hcw/cases/${fu.case_id}`}
-                  className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="shrink-0 self-start rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:self-auto"
                 >
                   View Case
                 </Link>
@@ -526,7 +526,7 @@ export default function FacilityAdminDashboard() {
 
       {/* TAB 5: REPORTS & EXCEL EXPORT */}
       {activeTab === 'reports' && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm text-center max-w-xl mx-auto space-y-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm text-center max-w-xl mx-auto space-y-4">
           <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-100 text-teal-800">
             <FileSpreadsheet className="h-8 w-8" />
           </span>
@@ -551,7 +551,7 @@ export default function FacilityAdminDashboard() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
           <h2 className="text-base font-bold text-slate-900">Facility Audit Trail</h2>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[720px] text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
                 <tr>
                   <th className="p-3">Timestamp</th>
@@ -601,7 +601,7 @@ export default function FacilityAdminDashboard() {
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-700 font-medium"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="font-semibold text-slate-700">State:</label>
                 <input
@@ -639,7 +639,7 @@ export default function FacilityAdminDashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <form
             onSubmit={handleCreateStaff}
-            className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4"
+            className="w-full max-h-[90vh] overflow-y-auto max-w-md rounded-3xl bg-white p-4 sm:p-6 shadow-2xl space-y-4"
           >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900">Register Healthcare Staff</h3>

@@ -154,7 +154,7 @@ export default function HcwVoiceCalls() {
             <PhoneCall className="h-3.5 w-3.5 text-teal-700" />
             <span>AI-Assisted Tele-calling Agent · VideoSDK & Python</span>
           </div>
-          <h1 className="mt-2 text-2xl font-black text-slate-900">
+          <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">
             Voice Calls & Tele-calling Center
           </h1>
           <p className="mt-1 text-xs text-slate-500">
@@ -162,7 +162,7 @@ export default function HcwVoiceCalls() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={fetchCalls}
@@ -184,14 +184,14 @@ export default function HcwVoiceCalls() {
 
       {/* ACTIVE CALL LIVE MONITOR MODAL / DRAWER */}
       {activeCall && (
-        <div className="rounded-3xl border-2 border-teal-500/50 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-6 text-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-teal-500 text-slate-950 font-black">
+        <div className="rounded-3xl border-2 border-teal-500/50 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-4 text-white shadow-2xl sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-teal-500 text-slate-950 font-black">
                 <PhoneCall className="h-5 w-5 animate-pulse" />
               </span>
-              <div>
-                <div className="flex items-center gap-2">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base font-bold text-white">Active Follow-up Tele-call</h2>
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
@@ -203,14 +203,14 @@ export default function HcwVoiceCalls() {
                     {activeCall.status === 'COMPLETED' ? 'Call Completed' : '● Patient Connected'}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">
+                <p className="break-words text-xs text-slate-400">
                   Case: {activeCall.case_number} · Patient: {activeCall.patient_name} · Phone:{' '}
                   {activeCall.phone_number}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex shrink-0 items-center gap-4">
               <div className="text-right">
                 <span className="text-[10px] text-slate-400 uppercase tracking-wider">Duration</span>
                 <p className="font-mono text-base font-bold text-teal-300">
@@ -345,9 +345,9 @@ export default function HcwVoiceCalls() {
 
       {/* CALL LOGS TABLE */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-teal-700" />
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Activity className="h-4 w-4 shrink-0 text-teal-700" />
             <h2 className="text-sm font-bold text-slate-800">Tele-call History & Transcripts</h2>
           </div>
           <span className="text-xs text-slate-500">
@@ -379,17 +379,17 @@ export default function HcwVoiceCalls() {
 
         {!loading && !error && calls && calls.items.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[768px] text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
                 <tr>
-                  <th className="p-3">Call ID</th>
-                  <th className="p-3">Case Number</th>
-                  <th className="p-3">Patient</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Questions</th>
-                  <th className="p-3">Duration</th>
-                  <th className="p-3">Initiated</th>
-                  <th className="p-3 text-right">Actions</th>
+                  <th className="whitespace-nowrap p-3">Call ID</th>
+                  <th className="whitespace-nowrap p-3">Case Number</th>
+                  <th className="whitespace-nowrap p-3">Patient</th>
+                  <th className="whitespace-nowrap p-3">Status</th>
+                  <th className="whitespace-nowrap p-3">Questions</th>
+                  <th className="whitespace-nowrap p-3">Duration</th>
+                  <th className="whitespace-nowrap p-3">Initiated</th>
+                  <th className="whitespace-nowrap p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -447,14 +447,14 @@ export default function HcwVoiceCalls() {
 
       {/* NEW TELE-CALL MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-100 text-teal-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm">
+          <div className="my-auto max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-800">
                   <PhoneCall className="h-4 w-4" />
                 </span>
-                <h3 className="text-base font-bold text-slate-900">Initiate Follow-up Tele-call</h3>
+                <h3 className="break-words text-base font-bold text-slate-900">Initiate Follow-up Tele-call</h3>
               </div>
               <button
                 type="button"
@@ -525,7 +525,7 @@ export default function HcwVoiceCalls() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}

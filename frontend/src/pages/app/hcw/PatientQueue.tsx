@@ -75,12 +75,12 @@ export default function PatientQueue() {
   return (
     <div className="mx-auto max-w-6xl">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">{t('hcw.queue.title')}</h1>
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{t('hcw.queue.title')}</h1>
         <p className="mt-1 text-sm text-slate-500">{t('hcw.queue.subtitle')}</p>
       </div>
 
-      <div className="card mt-5 flex flex-col gap-3 p-4 lg:flex-row lg:items-center">
-        <div className="relative min-w-0 flex-1">
+      <div className="card mt-5 flex flex-col gap-3 p-4 lg:flex-row lg:flex-wrap lg:items-center">
+        <div className="relative min-w-0 flex-1 lg:basis-full">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             value={searchInput}
@@ -175,31 +175,31 @@ export default function PatientQueue() {
                 <Link
                   key={c.id}
                   to={`/app/hcw/cases/${c.id}`}
-                  className="flex items-center gap-3 p-4 transition hover:bg-brand-50/40"
+                  className="flex w-full flex-wrap items-center gap-3 p-4 transition hover:bg-brand-50/40"
                 >
-                  <div className="w-28 shrink-0">
+                  <span className="w-24 shrink-0 sm:w-28">
                     <span className={`inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold ${PRIORITY_BADGE[c.priority]}`}>
                       {t(`hcw.priority.${c.priority}`)}
                     </span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-800">
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-slate-800">
                       {c.patient_name} · {c.case_number}
                       {c.chief_concern && <span className="text-slate-500"> — {c.chief_concern}</span>}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    </span>
+                    <span className="mt-0.5 block text-xs text-slate-500">
                       {t(`hcw.status.${c.status}`)} · {t(`hcw.source.${c.source}`)} ·{' '}
                       {new Date(c.created_at).toLocaleString()}
                       {c.submitted_at && ` · ${t('hcw.queue.submitted')}: ${new Date(c.submitted_at).toLocaleString()}`}
-                    </p>
-                  </div>
+                    </span>
+                  </span>
                   {c.signal_count > 0 && (
-                    <span className="shrink-0 text-xs font-medium text-red-600">
+                    <span className="hidden shrink-0 text-xs font-medium text-red-600 sm:inline">
                       {c.signal_count} {t('hcw.dashboard.signals')}
                     </span>
                   )}
                   {c.symptom_count > 0 && (
-                    <span className="hidden shrink-0 text-xs text-slate-400 sm:block">
+                    <span className="hidden shrink-0 text-xs text-slate-400 md:inline">
                       {c.symptom_count} {t('hcw.queue.symptomsLower')}
                     </span>
                   )}
@@ -208,7 +208,7 @@ export default function PatientQueue() {
               ))}
             </div>
 
-            <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
               <span>
                 {t('hcw.queue.total', { total: data.total })} · {t('hcw.queue.page', { page: params.page, pages: totalPages })}
               </span>

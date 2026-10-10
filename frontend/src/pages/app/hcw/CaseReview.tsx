@@ -275,7 +275,7 @@ export default function CaseReview() {
   return (
     <div className="mx-auto max-w-7xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => navigate('/app/hcw/queue')}
@@ -313,24 +313,24 @@ export default function CaseReview() {
       <div className="mt-5 grid gap-4 lg:grid-cols-3">
         {/* LEFT: Original information */}
         <section className="card min-w-0 !p-0 lg:col-span-1">
-          <header className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
-            <FileText className="h-4 w-4 text-brand-700" />
+          <header className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+            <FileText className="h-4 w-4 shrink-0 text-brand-700" />
             {t('hcw.review.originalInfo')}
           </header>
           <div className="p-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t('hcw.review.patient')}</h3>
-            <p className="mt-1 text-sm font-medium text-slate-800">{d.patient.full_name ?? NO_DATA}</p>
-            <p className="mt-0.5 text-xs text-slate-500">
+            <p className="mt-1 break-words text-sm font-medium text-slate-800">{d.patient.full_name ?? NO_DATA}</p>
+            <p className="mt-0.5 break-words text-xs text-slate-500">
               {d.patient.phone ?? NO_DATA} · {d.patient.age ?? NO_DATA} · {d.patient.gender ?? NO_DATA}
             </p>
 
             <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">{t('hcw.review.chiefConcern')}</h3>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{d.chief_concern ?? NO_DATA}</p>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-700">{d.chief_concern ?? NO_DATA}</p>
 
             {d.timeline_text && (
               <>
                 <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">{t('hcw.review.timeline')}</h3>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{d.timeline_text}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-700">{d.timeline_text}</p>
               </>
             )}
           </div>
@@ -356,7 +356,7 @@ export default function CaseReview() {
                           : 'rounded-bl-sm border border-slate-200 bg-white text-slate-700'
                       }`}
                     >
-                      <p className="whitespace-pre-wrap">{m.content}</p>
+                      <p className="whitespace-pre-wrap break-words">{m.content}</p>
                       <div className={`mt-1 text-[10px] ${m.role === 'PATIENT' ? 'text-white/60' : 'text-slate-400'}`}>
                         {m.role === 'PATIENT' ? t('patient.chat.you') : t('patient.chat.assistant')} ·{' '}
                         {new Date(m.created_at).toLocaleString()}
@@ -422,9 +422,9 @@ export default function CaseReview() {
         {/* CENTER: AI summary + organized picture */}
         <div className="min-w-0 space-y-4 lg:col-span-1">
           <section className="card min-w-0 !p-0">
-            <header className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
-              <Sparkles className="h-4 w-4 text-brand-700" />
-              {t('hcw.case.aiSummary.title')}
+            <header className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+              <Sparkles className="h-4 w-4 shrink-0 text-brand-700" />
+              <span className="min-w-0 break-words">{t('hcw.case.aiSummary.title')}</span>
               <span className="ml-auto rounded bg-brand-50 px-2 py-0.5 text-[11px] font-normal text-brand-700">
                 {aiBox?.provider ?? t('hcw.case.aiSummary.providerLabel')}
               </span>
@@ -474,8 +474,8 @@ export default function CaseReview() {
           {/* CROSS-MODAL CLINICAL CONTRADICTIONS */}
           {clinicalAnalysis?.contradictions && clinicalAnalysis.contradictions.length > 0 && (
             <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 shadow-sm space-y-3">
-              <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wide">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <div className="flex flex-wrap items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wide">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
                 Cross-Modal Contradiction Alert ({clinicalAnalysis.contradictions.length})
               </div>
               <p className="text-xs text-amber-800">
@@ -484,22 +484,22 @@ export default function CaseReview() {
               <div className="space-y-2.5">
                 {clinicalAnalysis.contradictions.map((c, i) => (
                   <div key={i} className="rounded-xl border border-amber-200 bg-white p-3 text-xs shadow-xs space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] font-semibold">
-                      <span className="font-mono text-amber-700">{c.contradiction_type}</span>
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold">
+                      <span className="min-w-0 break-all font-mono text-amber-700">{c.contradiction_type}</span>
                       <span className="rounded bg-rose-100 text-rose-700 px-1.5 py-0.5 font-bold text-[10px]">{c.severity}</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100">
-                      <div>
+                    <div className="grid grid-cols-1 gap-2 text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100 sm:grid-cols-2">
+                      <div className="min-w-0">
                         <span className="font-medium text-slate-500 block">Statement A ({c.source_a}):</span>
-                        <span className="text-slate-800 font-semibold">{c.statement_a}</span>
+                        <span className="break-words text-slate-800 font-semibold">{c.statement_a}</span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="font-medium text-slate-500 block">Statement B ({c.source_b}):</span>
-                        <span className="text-slate-800 font-semibold">{c.statement_b}</span>
+                        <span className="break-words text-slate-800 font-semibold">{c.statement_b}</span>
                       </div>
                     </div>
-                    <p className="text-[11px] text-slate-600"><strong className="text-slate-700">Clinical Implication:</strong> {c.clinical_implication}</p>
-                    <p className="text-[11px] text-teal-800 font-medium bg-teal-50/80 p-1.5 rounded border border-teal-100">
+                    <p className="break-words text-[11px] text-slate-600"><strong className="text-slate-700">Clinical Implication:</strong> {c.clinical_implication}</p>
+                    <p className="break-words text-[11px] text-teal-800 font-medium bg-teal-50/80 p-1.5 rounded border border-teal-100">
                       🩺 <strong>Clinician Action:</strong> {c.recommended_doctor_action}
                     </p>
                   </div>
@@ -511,9 +511,9 @@ export default function CaseReview() {
           {/* EVIDENCE-GROUNDED INSTITUTIONAL SOP GUIDELINES (RAG) */}
           {sopGuidelines?.has_guidance && sopGuidelines.protocols.length > 0 && (
             <section className="card min-w-0 !p-0 border-teal-200 bg-teal-50/20">
-              <header className="flex items-center gap-2 border-b border-teal-100 px-4 py-3 text-sm font-semibold text-teal-900 bg-teal-50/60">
-                <BookOpen className="h-4 w-4 text-teal-700" />
-                Evidence-Grounded Institutional SOP Guidelines
+              <header className="flex flex-wrap items-center gap-2 border-b border-teal-100 px-4 py-3 text-sm font-semibold text-teal-900 bg-teal-50/60">
+                <BookOpen className="h-4 w-4 shrink-0 text-teal-700" />
+                <span className="min-w-0 break-words">Evidence-Grounded Institutional SOP Guidelines</span>
                 <span className="ml-auto rounded bg-teal-100 px-2 py-0.5 text-[11px] font-bold text-teal-800">
                   Odisha Health & NHM
                 </span>
@@ -521,13 +521,13 @@ export default function CaseReview() {
               <div className="p-4 space-y-3">
                 {sopGuidelines.protocols.map((p, idx) => (
                   <div key={idx} className="rounded-xl border border-teal-100 bg-white p-3 text-xs shadow-xs space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-800">{p.doc_title}</span>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0 break-words font-bold text-slate-800">{p.doc_title}</span>
                       <span className="font-mono text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
                         {p.source_citation}
                       </span>
                     </div>
-                    <p className="text-slate-600 text-xs italic">{p.triage_pathway}</p>
+                    <p className="break-words text-slate-600 text-xs italic">{p.triage_pathway}</p>
                     {p.recommended_actions.length > 0 && (
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700">Recommended Clinician Triage Actions:</span>
@@ -561,9 +561,9 @@ export default function CaseReview() {
           {caseIdNum != null && <EvidenceLedger caseId={caseIdNum} />}
 
           <section className="card min-w-0 !p-0">
-          <header className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
-            <Stethoscope className="h-4 w-4 text-brand-700" />
-            {t('hcw.review.organized')}
+          <header className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+            <Stethoscope className="h-4 w-4 shrink-0 text-brand-700" />
+            <span className="min-w-0 break-words">{t('hcw.review.organized')}</span>
             <span className="ml-auto rounded bg-brand-50 px-2 py-0.5 text-[11px] font-normal text-brand-700">
               {t('patient.chat.aiLabel')}
             </span>
@@ -580,9 +580,9 @@ export default function CaseReview() {
                       (ci) => ci.name.toLowerCase() === s.term.toLowerCase() || s.term.toLowerCase().includes(ci.name.toLowerCase())
                     )
                     return (
-                      <li key={s.id} className="flex items-center justify-between gap-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-800">{s.term}</span>
+                      <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <span className="min-w-0 break-words text-slate-800">{s.term}</span>
                           {cItem && (
                             <span
                               className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${
@@ -616,9 +616,9 @@ export default function CaseReview() {
                       (mi) => mi.name.toLowerCase() === m.name.toLowerCase()
                     )
                     return (
-                      <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-800">
+                      <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <span className="min-w-0 break-words text-slate-800">
                             {m.name}: {m.value} {m.unit ?? ''}
                           </span>
                           {mItem && (
@@ -652,7 +652,7 @@ export default function CaseReview() {
                   {d.missing_information.map((item, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
-                      {item}
+                      <span className="break-words">{item}</span>
                     </li>
                   ))}
                 </ul>
@@ -667,7 +667,7 @@ export default function CaseReview() {
                   {d.safety_signals.map((sig, i) => (
                     <li key={sig.id ?? i} className="flex items-start gap-2 text-sm text-red-700">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                      <span>{sig.label || sig.message}</span>
+                      <span className="break-words">{sig.label || sig.message}</span>
                     </li>
                   ))}
                 </ul>
@@ -700,7 +700,7 @@ export default function CaseReview() {
                 type="button"
                 onClick={sendDoctorReply}
                 disabled={!noteText.trim() || busy !== null}
-                className="btn-primary w-full text-xs py-2 disabled:opacity-40"
+                className="btn-primary flex w-full items-center justify-center gap-2 text-xs py-2 disabled:opacity-40"
                 title="Sends official clinical advice to patient chat and alerts all facility staff"
               >
                 {busy === 'reply' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
@@ -710,7 +710,7 @@ export default function CaseReview() {
                 type="button"
                 onClick={addNote}
                 disabled={!noteText.trim() || busy !== null}
-                className="btn-secondary w-full text-xs py-2 disabled:opacity-40"
+                className="btn-secondary flex w-full items-center justify-center gap-2 text-xs py-2 disabled:opacity-40"
                 title="Saves an internal staff note and notifies facility members"
               >
                 {busy === 'note' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
@@ -724,7 +724,7 @@ export default function CaseReview() {
               type="button"
               onClick={markReviewed}
               disabled={d.status === 'REVIEWED' || !isActive || busy !== null}
-              className="btn-primary w-full disabled:opacity-40"
+              className="btn-primary inline-flex w-full items-center justify-center gap-2 disabled:opacity-40"
             >
               <CheckCircle2 className="h-4 w-4" />
               {d.status === 'REVIEWED' ? t('hcw.review.alreadyReviewed') : t('hcw.review.markReviewed')}
@@ -734,7 +734,7 @@ export default function CaseReview() {
               type="button"
               onClick={() => setShowFollowup(true)}
               disabled={!isActive || busy !== null}
-              className="btn-secondary w-full disabled:opacity-40"
+              className="btn-secondary inline-flex w-full items-center justify-center gap-2 disabled:opacity-40"
             >
               <MessageSquarePlus className="h-4 w-4" />
               {t('hcw.review.requestFollowup')}
@@ -744,7 +744,7 @@ export default function CaseReview() {
               type="button"
               onClick={() => setShowReferral(true)}
               disabled={!isActive || busy !== null}
-              className="btn-outline w-full disabled:opacity-40"
+              className="btn-outline inline-flex w-full items-center justify-center gap-2 disabled:opacity-40"
             >
               <PhoneCall className="h-4 w-4" />
               {t('hcw.review.prepareReferral')}
@@ -753,7 +753,7 @@ export default function CaseReview() {
             <button
               type="button"
               onClick={() => setShowLongitudinal(true)}
-              className="btn-secondary w-full flex items-center justify-center gap-2 text-xs py-2 bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200"
+              className="btn-secondary inline-flex w-full items-center justify-center gap-2 text-xs py-2 bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200"
               title="Inspect multi-encounter history, previous visit symptoms, and vital trajectories"
             >
               <History className="h-4 w-4 text-teal-700" />
@@ -764,7 +764,7 @@ export default function CaseReview() {
               type="button"
               onClick={() => setShowEscalate(true)}
               disabled={d.status === 'ESCALATED' || !isActive || busy !== null}
-              className="btn-ghost w-full border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-40"
+              className="btn-ghost inline-flex w-full items-center justify-center gap-2 border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-40"
             >
               <Flag className="h-4 w-4" />
               {d.status === 'ESCALATED' ? t('hcw.review.alreadyEscalated') : t('hcw.review.escalate')}
@@ -784,7 +784,7 @@ export default function CaseReview() {
               <ul className="mt-2 space-y-2">
                 {notes.map((n) => (
                   <li key={n.id} className="rounded-xl bg-slate-50 p-3">
-                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-700">{n.note}</p>
+                    <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-700">{n.note}</p>
                     <p className="mt-1.5 text-[10px] text-slate-400">
                       {n.author_full_name ?? NO_DATA} · {n.author_role ?? ''} · {new Date(n.created_at).toLocaleString()}
                     </p>
@@ -839,7 +839,7 @@ export default function CaseReview() {
               <option value="IN_APP_VOICE">{t('hcw.channel.IN_APP_VOICE')}</option>
             </select>
           </label>
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
             <button type="button" onClick={() => setShowFollowup(false)} className="btn-ghost px-4 py-2 text-sm">
               {t('common.cancel')}
             </button>
@@ -864,7 +864,7 @@ export default function CaseReview() {
             <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
             {t('hcw.review.referralNote')}
           </p>
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
             <button type="button" onClick={() => setShowReferral(false)} className="btn-ghost px-4 py-2 text-sm">
               {t('common.cancel')}
             </button>
@@ -898,13 +898,13 @@ export default function CaseReview() {
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                 {(longitudinalData?.encounters || []).map((enc, idx) => (
                   <div key={idx} className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-brand-700">{enc.case_number} ({enc.date})</span>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0 break-all font-mono font-bold text-brand-700">{enc.case_number} ({enc.date})</span>
                       <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                         {enc.priority}
                       </span>
                     </div>
-                    <p className="font-medium text-slate-800">Chief concern: {enc.chief_concern || 'Routine check'}</p>
+                    <p className="break-words font-medium text-slate-800">Chief concern: {enc.chief_concern || 'Routine check'}</p>
                     {enc.symptoms.length > 0 && (
                       <p className="text-slate-500 text-[11px]">Symptoms: {enc.symptoms.join(', ')}</p>
                     )}
@@ -972,14 +972,14 @@ function ConfirmDialog({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="card w-full max-w-md p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
+      <div className="card relative my-auto max-h-[90vh] w-full max-w-md overflow-y-auto p-6">
         <h2 className="flex items-center gap-2 font-semibold text-red-700">
-          <AlertTriangle className="h-5 w-5" />
-          {title}
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <span className="break-words">{title}</span>
         </h2>
-        <p className="mt-2 text-sm text-slate-600">{body}</p>
-        <div className="mt-5 flex justify-end gap-2">
+        <p className="mt-2 break-words text-sm text-slate-600">{body}</p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
           <button type="button" onClick={onCancel} className="btn-ghost px-4 py-2 text-sm">
             {t('common.cancel')}
           </button>

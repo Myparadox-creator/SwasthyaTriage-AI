@@ -319,23 +319,23 @@ export default function CommunicationCentre() {
     <div className="flex h-[calc(100vh-5rem)] flex-col rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
       {/* Offline Alert Bar if system is offline */}
       {mode === 'OFFLINE' && (
-        <div className="flex items-center justify-between border-b border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-800">
-          <div className="flex items-center gap-2">
-            <WifiOff className="h-4 w-4 text-rose-600" />
-            <span>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-800">
+          <div className="flex min-w-0 items-center gap-2">
+            <WifiOff className="h-4 w-4 shrink-0 text-rose-600" />
+            <span className="break-words">
               Real-time Socket.IO communication is in Offline Queue Mode. Messages are stored locally on this tablet.
             </span>
           </div>
-          <Link to="/app/hcw/sync-queue" className="underline hover:text-rose-950 font-bold">
+          <Link to="/app/hcw/sync-queue" className="shrink-0 underline hover:text-rose-950 font-bold">
             View Sync Queue
           </Link>
         </div>
       )}
 
       {/* Main 3-Panel Layout */}
-      <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-12">
+      <div className="grid flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-12 lg:overflow-hidden">
         {/* LEFT PANEL: Conversations List (col-span-3) */}
-        <div className="flex flex-col border-r border-slate-200 bg-slate-50/50 lg:col-span-4 xl:col-span-3 overflow-hidden">
+        <div className="flex min-h-[45vh] flex-col border-b border-slate-200 bg-slate-50/50 lg:col-span-4 lg:min-h-0 lg:border-b-0 lg:border-r xl:col-span-3 overflow-hidden">
           {/* Header & Search */}
           <div className="p-3.5 border-b border-slate-200 bg-white">
             <div className="flex items-center justify-between">
@@ -471,21 +471,21 @@ export default function CommunicationCentre() {
         </div>
 
         {/* MIDDLE PANEL: Active Conversation & Composer (col-span-5 / 6) */}
-        <div className="flex flex-col border-r border-slate-200 bg-white lg:col-span-5 xl:col-span-6 overflow-hidden">
+        <div className="flex min-h-[60vh] flex-col bg-white lg:col-span-5 lg:min-h-0 lg:border-r lg:border-slate-200 xl:col-span-6 overflow-hidden">
           {/* Header */}
-          <div className="p-3.5 border-b border-slate-200 bg-white flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-100 text-teal-800">
+          <div className="p-3.5 border-b border-slate-200 bg-white flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-800">
                 <Stethoscope className="h-5 w-5" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-slate-900">{activeConv.title}</h3>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900 break-words">{activeConv.title}</h3>
                   <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700">
                     {activeConv.encounterId}
                   </span>
                 </div>
-                <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
+                <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                   <span>Participants:</span>
                   {activeConv.participants.map((p) => (
                     <span key={p.name} className="flex items-center gap-1 text-[11px] font-medium text-slate-700">
@@ -500,7 +500,7 @@ export default function CommunicationCentre() {
             </div>
 
             {/* Socket Status Indicator */}
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <div
                 className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
                   mode === 'OFFLINE'
@@ -554,7 +554,7 @@ export default function CommunicationCentre() {
               if (m.isSystemEvent) {
                 return (
                   <div key={m.id} className="flex justify-center my-2">
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-800 shadow-xs">
+                    <div className="flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-800 shadow-xs">
                       <ShieldAlert className="h-4 w-4 text-rose-600" />
                       <span>{m.content}</span>
                       <span className="text-[10px] text-rose-500 font-mono">{m.timestamp}</span>
@@ -566,7 +566,7 @@ export default function CommunicationCentre() {
               const isMe = String(m.senderId) === String(user.id)
               return (
                 <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1 px-1">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 mb-1 px-1">
                     <span className="font-semibold text-slate-700">{m.senderName}</span>
                     <span
                       className={`rounded px-1 text-[9px] font-bold ${
@@ -632,15 +632,15 @@ export default function CommunicationCentre() {
               </button>
             </div>
 
-            <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400 px-1">
-              <span>🔒 Encrypted healthcare staff channel. Audited under clinical review protocol.</span>
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-1 text-[10px] text-slate-400 px-1">
+              <span className="break-words">🔒 Encrypted healthcare staff channel. Audited under clinical review protocol.</span>
               <span>{inputText.length} chars</span>
             </div>
           </form>
         </div>
 
         {/* RIGHT PANEL: Encounter Context & Provenance (col-span-4 / 3) */}
-        <div className="flex flex-col bg-slate-50/70 p-4 lg:col-span-3 xl:col-span-3 overflow-y-auto space-y-4">
+        <div className="flex flex-col border-t border-slate-200 bg-slate-50/70 p-4 lg:col-span-3 lg:border-t-0 xl:col-span-3 lg:overflow-y-auto space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Encounter Clinical Context

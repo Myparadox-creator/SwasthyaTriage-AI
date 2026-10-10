@@ -224,7 +224,7 @@ export default function GoogleSignInButton({ role }: GoogleSignInButtonProps) {
         ) : (
           <>
             <GoogleIcon />
-            <span>
+            <span className="text-center leading-snug">
               {role
                 ? `Continue with Google as ${role.replace('_', ' ').toUpperCase()}`
                 : t('auth.continueWithGoogle')}

@@ -37,10 +37,10 @@ export default function SyncQueuePage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       {/* Top Rural Connectivity Header Card */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold">
+          <div className="min-w-0">
+            <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold">
               {mode === 'ONLINE' ? (
                 <>
                   <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -64,15 +64,15 @@ export default function SyncQueuePage() {
               )}
             </div>
 
-            <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
+            <h1 className="mt-2 text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-slate-900">
               Pending Sync Queue (Rural Health Field Station)
             </h1>
-            <p className="mt-0.5 text-xs text-slate-500">
+            <p className="mt-0.5 text-xs text-slate-500 break-words">
               Encrypted IndexedDB queue for village camps, sub-centres, and low-connectivity PHCs.
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
               disabled={isSyncing || mode === 'OFFLINE'}
@@ -154,7 +154,7 @@ export default function SyncQueuePage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() => setMode('ONLINE')}
@@ -210,7 +210,7 @@ export default function SyncQueuePage() {
           return (
             <div
               key={enc.id}
-              className={`rounded-3xl border p-5 transition-all shadow-xs ${
+              className={`rounded-3xl border p-4 sm:p-5 transition-all shadow-xs ${
                 enc.hasRedFlag && !isSynced
                   ? 'border-rose-300 bg-rose-50/40'
                   : isSynced
@@ -219,8 +219,8 @@ export default function SyncQueuePage() {
               }`}
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800">
                       {enc.localRef}
                     </span>
@@ -248,7 +248,7 @@ export default function SyncQueuePage() {
                   <p className="text-xs text-slate-500">{enc.ageGender}</p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {!isSynced && (
                     <>
                       <button
@@ -286,7 +286,7 @@ export default function SyncQueuePage() {
               </div>
 
               {/* Chief Concern */}
-              <p className="mt-3 text-xs text-slate-700 bg-slate-50/70 p-3 rounded-2xl border border-slate-100 leading-relaxed">
+              <p className="mt-3 text-xs text-slate-700 bg-slate-50/70 p-3 rounded-2xl border border-slate-100 leading-relaxed break-words">
                 <span className="font-semibold text-slate-900">Recorded Symptoms:</span> {enc.chiefComplaint}
               </p>
 
@@ -308,7 +308,7 @@ export default function SyncQueuePage() {
 
               {/* Attachments & Meta Footer */}
               <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-400">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   {enc.attachments.audioMb && (
                     <span className="flex items-center gap-1 font-medium text-slate-600">
                       <Mic className="h-3 w-3 text-teal-600" />

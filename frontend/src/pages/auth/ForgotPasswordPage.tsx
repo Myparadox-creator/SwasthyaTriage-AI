@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="card w-full border border-slate-200/90 bg-white/95 p-6 shadow-xl shadow-slate-200/50 backdrop-blur-md sm:p-8 text-center">
+      <div className="card w-full max-w-md mx-auto border border-slate-200/90 bg-white/95 p-6 shadow-xl shadow-slate-200/50 backdrop-blur-md sm:p-8 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-100 text-teal-700">
           <CheckCircle2 className="h-6 w-6" />
         </div>
@@ -46,7 +46,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="card w-full border border-slate-200/90 bg-white/95 p-5 shadow-xl shadow-slate-200/50 backdrop-blur-md sm:p-7 md:p-8">
+    <div className="card w-full max-w-md mx-auto border border-slate-200/90 bg-white/95 p-4 shadow-xl shadow-slate-200/50 backdrop-blur-md sm:p-6 md:p-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">

@@ -12,7 +12,7 @@ import LanguagePicker from '../../components/LanguagePicker'
 export default function AuthLayout() {
 
   return (
-    <div className="flex min-h-screen w-full flex-col lg:flex-row bg-slate-50 text-slate-900 antialiased">
+    <div className="flex min-h-[100dvh] w-full flex-col lg:flex-row bg-slate-50 text-slate-900 antialiased">
       {/* Mobile / Tablet Top Bar */}
       <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-md lg:hidden">
         <Link to="/" className="flex items-center gap-2.5 font-bold text-slate-900">
@@ -152,8 +152,8 @@ export default function AuthLayout() {
         </div>
 
         {/* Content Outlet with Responsive Centering */}
-        <div className="flex flex-1 items-center justify-center p-4 sm:p-6 md:p-8 lg:p-10">
-          <div className="w-full max-w-xl">
+        <div className="flex flex-1 items-center justify-center px-4 py-8 sm:px-6 md:px-8 lg:px-10">
+          <div className="w-full max-w-md mx-auto">
             <Outlet />
           </div>
         </div>

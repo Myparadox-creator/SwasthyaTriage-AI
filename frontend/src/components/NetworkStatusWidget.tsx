@@ -75,7 +75,7 @@ export default function NetworkStatusWidget() {
 
         {/* Dropdown Menu */}
         {open && (
-          <div className="absolute right-0 mt-2 z-50 w-80 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-300/40 animate-in fade-in zoom-in-95">
+          <div className="absolute right-0 mt-2 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-300/40 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -196,7 +196,7 @@ export default function NetworkStatusWidget() {
       {/* Offline Communication Options Modal */}
       {showFallbackModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-800">
@@ -232,7 +232,7 @@ export default function NetworkStatusWidget() {
             <div className="mt-4 space-y-2.5">
               {/* Option 1: Minimal SMS Alert */}
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
                   <span className="text-xs font-bold text-slate-800">Option A: Minimal SMS Alert</span>
                   <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
                     Cellular GSM Active
@@ -254,7 +254,7 @@ export default function NetworkStatusWidget() {
 
               {/* Option 2: Direct Phone Call */}
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
                   <span className="text-xs font-bold text-slate-800">Option B: Facility Voice Call</span>
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                     Toll-Free Voice

@@ -101,10 +101,10 @@ export default function EvidenceLedger({ caseId }: { caseId: number }) {
 
   return (
     <section className="card min-w-0 !p-0">
-      <header className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
-        <FileSearch className="h-4 w-4 text-brand-700" />
-        Evidence Ledger
-        <span className="ml-auto flex items-center gap-2 text-[11px] font-normal">
+      <header className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+        <FileSearch className="h-4 w-4 shrink-0 text-brand-700" />
+        <span className="min-w-0 break-words">Evidence Ledger</span>
+        <span className="ml-auto flex flex-wrap items-center gap-2 text-[11px] font-normal">
           <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-600">{data.total} facts</span>
           <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-700">{data.pending_review} pending</span>
         </span>
@@ -121,7 +121,7 @@ export default function EvidenceLedger({ caseId }: { caseId: number }) {
           return (
             <div key={ev.id} className="rounded-lg border border-slate-200 p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-slate-800">
+                <span className="min-w-0 break-words text-sm font-medium text-slate-800">
                   {ev.label}
                   {ev.current_value && ev.current_value !== ev.label ? `: ${ev.current_value}` : ''}
                   {ev.unit ? ` ${ev.unit}` : ''}
@@ -144,14 +144,14 @@ export default function EvidenceLedger({ caseId }: { caseId: number }) {
               </div>
 
               {ev.source_snippet ? (
-                <p className="mt-2 rounded bg-slate-50 px-2 py-1.5 text-xs italic text-slate-600">
+                <p className="mt-2 break-words rounded bg-slate-50 px-2 py-1.5 text-xs italic text-slate-600">
                   “{ev.source_snippet}”
                 </p>
               ) : (
                 <p className="mt-2 text-xs italic text-slate-400">No verbatim source span captured.</p>
               )}
 
-              <p className="mt-1 text-[11px] text-slate-500">
+              <p className="mt-1 break-words text-[11px] text-slate-500">
                 Source: <span className="font-medium">{ev.source_provenance}</span>
                 {ev.source_ref_id ? ` · ${ev.source_ref_id}` : ''}
                 {ev.extraction_method ? ` · ${ev.extraction_method}` : ''}
@@ -159,7 +159,7 @@ export default function EvidenceLedger({ caseId }: { caseId: number }) {
               </p>
 
               {ev.original_value != null && ev.original_value !== ev.current_value && (
-                <p className="mt-1 text-[11px] text-brand-700">
+                <p className="mt-1 break-words text-[11px] text-brand-700">
                   Original extracted value preserved: <span className="font-medium">{ev.original_value}</span>
                 </p>
               )}
@@ -176,9 +176,9 @@ export default function EvidenceLedger({ caseId }: { caseId: number }) {
               )}
 
               {isEditing ? (
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <input
-                    className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-sm"
+                    className="min-w-0 flex-1 basis-full rounded border border-slate-300 px-2 py-1 text-sm sm:basis-auto"
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
                     placeholder="Corrected value"
@@ -198,7 +198,7 @@ export default function EvidenceLedger({ caseId }: { caseId: number }) {
                   </button>
                 </div>
               ) : (
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <button
                     className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 disabled:opacity-50"
                     disabled={busy === ev.id || ev.reviewer_status === 'CONFIRMED'}

@@ -511,7 +511,7 @@ export default function PatientUploads() {
 
   return (
     <div
-      className={`min-h-[calc(100vh-6rem)] rounded-3xl overflow-hidden border transition-colors flex flex-col md:flex-row shadow-sm ${
+      className={`min-h-[calc(100dvh-6rem)] rounded-3xl overflow-hidden border transition-colors flex flex-col lg:flex-row shadow-sm ${
         darkMode
           ? 'bg-slate-900 text-slate-100 border-slate-800'
           : 'bg-white text-slate-900 border-slate-200/90'
@@ -533,10 +533,21 @@ export default function PatientUploads() {
       {/* ========================================================================= */}
       {/* 1. LEFT SIDEBAR (CONVERSATIONS) */}
       {/* ========================================================================= */}
+      {!sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-slate-900/60"
+            onClick={() => setSidebarOpen(true)}
+          />
+        </div>
+      )}
+
       <aside
         className={`${
-          sidebarOpen ? 'w-full md:w-64 lg:w-72' : 'hidden'
-        } shrink-0 border-r flex flex-col transition-all duration-300 ${
+          sidebarOpen
+            ? 'hidden lg:flex lg:w-64 xl:w-72'
+            : 'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[80vw] shadow-2xl lg:hidden'
+        } shrink-0 border-r flex-col transition-all duration-300 ${
           darkMode ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50/80 border-slate-200'
         }`}
       >
@@ -551,7 +562,7 @@ export default function PatientUploads() {
           </span>
           <button
             type="button"
-            onClick={() => setSidebarOpen(false)}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
             className={`p-1.5 rounded-lg transition ${
               darkMode
                 ? 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -567,7 +578,10 @@ export default function PatientUploads() {
         <div className="p-3">
           <button
             type="button"
-            onClick={handleNewChat}
+            onClick={() => {
+              setSidebarOpen(true)
+              handleNewChat()
+            }}
             className="w-full flex items-center justify-center gap-2 rounded-xl bg-teal-700 hover:bg-teal-800 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-teal-700/20 transition active:scale-98"
           >
             <Plus className="h-4 w-4" />
@@ -634,6 +648,7 @@ export default function PatientUploads() {
                     onClick={() => {
                       setCaseId(c.id)
                       setMessages([])
+                      setSidebarOpen(true)
                     }}
                     className={`w-full text-left p-2.5 rounded-xl text-xs transition flex items-start gap-2.5 ${
                       isSelected
@@ -698,7 +713,7 @@ export default function PatientUploads() {
       {/* ========================================================================= */}
       {/* 2. MAIN INSIGHTRAG WORKSPACE */}
       {/* ========================================================================= */}
-      <main className="flex-1 flex flex-col min-w-0 h-[calc(100vh-6rem)] relative">
+      <main className="flex-1 flex flex-col min-w-0 h-[calc(100dvh-6rem)] relative lg:h-[calc(100dvh-7rem)]">
         {/* Top Navbar */}
         <header
           className={`h-14 px-4 sm:px-6 flex items-center justify-between border-b shrink-0 ${
@@ -708,12 +723,26 @@ export default function PatientUploads() {
           } backdrop-blur-md z-10`}
         >
           {/* Left Brand */}
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className={`p-1.5 rounded-lg transition lg:hidden ${
+                darkMode
+                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+              title="Open sidebar"
+              aria-label="Open sidebar"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+
             {!sidebarOpen && (
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className={`p-1.5 rounded-lg transition ${
+                className={`hidden lg:flex p-1.5 rounded-lg transition ${
                   darkMode
                     ? 'text-slate-400 hover:text-white hover:bg-slate-800'
                     : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
@@ -724,19 +753,19 @@ export default function PatientUploads() {
               </button>
             )}
 
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-teal-600 to-cyan-600 text-white shadow-md shadow-teal-600/20">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-teal-600 to-cyan-600 text-white shadow-md shadow-teal-600/20">
                 <FileText className="h-4 w-4" />
               </span>
-              <div>
+              <div className="min-w-0 leading-tight">
                 <span
-                  className={`font-extrabold text-sm sm:text-base tracking-tight ${
+                  className={`font-extrabold text-sm sm:text-base tracking-tight truncate inline-block ${
                     darkMode ? 'text-white' : 'text-slate-900'
                   }`}
                 >
                   InsightRAG
                 </span>
-                <span className="ml-1.5 rounded-md bg-teal-100/80 px-1.5 py-0.5 text-[9px] font-bold text-teal-800">
+                <span className="ml-1.5 hidden sm:inline rounded-md bg-teal-100/80 px-1.5 py-0.5 text-[9px] font-bold text-teal-800">
                   DocAI
                 </span>
               </div>
@@ -744,7 +773,7 @@ export default function PatientUploads() {
           </div>
 
           {/* Right Action Controls */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex shrink-0 items-center gap-2.5">
             {/* Direct Submit to Doctor Button */}
             <button
               type="button"
@@ -772,7 +801,8 @@ export default function PatientUploads() {
               }`}
             >
               <FolderOpen className="h-3.5 w-3.5 text-teal-600" />
-              <span>Documents ({docs.length})</span>
+              <span className="hidden sm:inline">Documents ({docs.length})</span>
+              <span className="sm:hidden">Docs ({docs.length})</span>
             </button>
 
             {/* Theme Toggle (Light / Dark) */}
@@ -793,10 +823,10 @@ export default function PatientUploads() {
 
         {/* Global Error Banner */}
         {errorBanner && (
-          <div className="mx-4 mt-2 p-3 rounded-2xl border border-red-300 bg-red-50 text-red-800 text-xs flex items-center justify-between animate-in fade-in">
-            <div className="flex items-center gap-2">
+          <div className="mx-4 mt-2 flex min-w-0 items-center justify-between gap-2 p-3 rounded-2xl border border-red-300 bg-red-50 text-red-800 text-xs animate-in fade-in">
+            <div className="flex min-w-0 items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
-              <span>{errorBanner}</span>
+              <span className="min-w-0 break-words">{errorBanner}</span>
             </div>
             <button
               type="button"
@@ -809,7 +839,7 @@ export default function PatientUploads() {
         )}
 
         {/* Main Conversation or Empty Hero Area */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6 space-y-6">
           {messages.length === 0 ? (
             /* =============================================================== */
             /* HERO EMPTY STATE (CLEAN CLINICAL AESTHETIC) */
@@ -936,7 +966,7 @@ export default function PatientUploads() {
 
                   {/* Message Bubble */}
                   <div
-                    className={`rounded-2xl p-4.5 text-xs sm:text-sm leading-relaxed max-w-2xl shadow-sm ${
+                    className={`break-words rounded-2xl p-4.5 text-xs sm:text-sm leading-relaxed max-w-2xl shadow-sm ${
                       msg.role === 'user'
                         ? 'bg-teal-700 text-white rounded-br-xs'
                         : darkMode
@@ -980,7 +1010,7 @@ export default function PatientUploads() {
                     {msg.clinicalFlags && msg.clinicalFlags.length > 0 && (
                       <div className="mt-2.5 p-2.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs flex items-center gap-2">
                         <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600" />
-                        <div>
+                        <div className="min-w-0">
                           <strong className="block text-[11px] uppercase">
                             Clinical Observation:
                           </strong>
@@ -1058,7 +1088,7 @@ export default function PatientUploads() {
         {/* 3. BOTTOM PILL-SHAPED CHAT INPUT BAR */}
         {/* ========================================================================= */}
         <div
-          className={`p-4 border-t ${
+          className={`p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t sm:p-4 ${
             darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
           }`}
         >
@@ -1095,7 +1125,7 @@ export default function PatientUploads() {
                 value={inputQuery}
                 onChange={(e) => setInputQuery(e.target.value)}
                 placeholder="Ask about your documents..."
-                className={`flex-1 bg-transparent text-xs sm:text-sm focus:outline-none ${
+                className={`min-w-0 flex-1 bg-transparent text-xs sm:text-sm focus:outline-none ${
                   darkMode
                     ? 'text-slate-100 placeholder:text-slate-500'
                     : 'text-slate-900 placeholder:text-slate-400'
@@ -1106,7 +1136,7 @@ export default function PatientUploads() {
               <button
                 type="submit"
                 disabled={!inputQuery.trim() || isQueryingRAG}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-700 hover:bg-teal-800 text-white shadow-md transition disabled:opacity-30 disabled:hover:bg-teal-700 active:scale-95 shrink-0"
+                className="flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-teal-700 hover:bg-teal-800 text-white shadow-md transition disabled:opacity-30 disabled:hover:bg-teal-700 active:scale-95 shrink-0"
               >
                 <ArrowUp className="h-4 w-4" />
               </button>
@@ -1125,7 +1155,7 @@ export default function PatientUploads() {
       {docsDrawerOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs animate-in fade-in">
           <div
-            className={`w-full max-w-md h-full p-6 flex flex-col border-l shadow-2xl ${
+            className={`w-full max-w-md h-full p-4 sm:p-6 flex flex-col border-l shadow-2xl ${
               darkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
             }`}
           >
@@ -1157,9 +1187,9 @@ export default function PatientUploads() {
                       darkMode ? 'border-slate-800 bg-slate-850' : 'border-slate-200 bg-slate-50'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 truncate">
+                    <div className="flex min-w-0 items-center gap-2.5 truncate">
                       <FileText className="h-4 w-4 text-teal-600 shrink-0" />
-                      <div className="truncate">
+                      <div className="min-w-0 truncate">
                         <p className="font-bold truncate text-slate-900">{doc.filename}</p>
                         <p className="text-[10px] text-slate-500 font-mono">
                           {(doc.size_bytes / 1024).toFixed(1)} KB · {doc.status}
@@ -1218,12 +1248,12 @@ export default function PatientUploads() {
       {/* ========================================================================= */}
       {doctorSubmittedModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in zoom-in-95">
-          <div className="w-full max-w-md rounded-3xl border border-emerald-300 bg-white p-6 shadow-2xl text-slate-900 space-y-4">
+          <div className="w-full max-w-md rounded-3xl border border-emerald-300 bg-white p-5 sm:p-6 shadow-2xl text-slate-900 space-y-4">
             <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
                 <CheckCircle2 className="h-6 w-6" />
               </span>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-base font-bold text-slate-900">
                   Successfully Sent to Doctor!
                 </h3>
@@ -1234,23 +1264,23 @@ export default function PatientUploads() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-xs">
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-3">
                 <span className="text-slate-500">Case Reference:</span>
                 <span className="font-mono font-bold text-slate-900">
                   {doctorSubmittedModal.caseNumber}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-3">
                 <span className="text-slate-500">Triage Priority:</span>
                 <span className="font-bold text-emerald-700">
                   {doctorSubmittedModal.priority}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Submission Date & Time:</span>
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">Submission Date &amp; Time:</span>
                 <span className="text-slate-900 font-bold">📅 {doctorSubmittedModal.dateTime || doctorSubmittedModal.time}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-3">
                 <span className="text-slate-500">Doctor Queue:</span>
                 <span className="text-teal-700 font-semibold">Active & Notified</span>
               </div>
@@ -1261,7 +1291,7 @@ export default function PatientUploads() {
               and InsightRAG report summary for immediate review.
             </p>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setDoctorSubmittedModal(null)}

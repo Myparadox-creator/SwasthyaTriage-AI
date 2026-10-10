@@ -38,15 +38,15 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="card w-full border border-slate-200/90 bg-white/95 p-5 shadow-xl shadow-slate-200/50 backdrop-blur-md sm:p-7 md:p-8 transition-all">
-      <div className="flex items-center justify-between">
+    <div className="card w-full max-w-md mx-auto border border-slate-200/90 bg-white/95 p-4 shadow-xl shadow-slate-200/50 backdrop-blur-md sm:p-6 md:p-8 transition-all">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
             {t('auth.signUp')}
           </h1>
           <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">{t('auth.signUpBody')}</p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">
+        <span className="inline-flex self-start items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">
           <CheckCircle2 className="h-3.5 w-3.5 text-teal-600" />
           Citizen Portal
         </span>

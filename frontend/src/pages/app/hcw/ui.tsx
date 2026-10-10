@@ -12,9 +12,9 @@ export function FormDialog({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="card w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4" onClick={onClose}>
+      <div className="card relative my-auto max-h-[90vh] w-full max-w-lg overflow-y-auto p-4 sm:p-6" onClick={(e) => e.stopPropagation()}>
+        <h2 className="pr-8 text-sm font-semibold text-slate-900">{title}</h2>
         <div className="mt-3">{children}</div>
         <button
           type="button"
