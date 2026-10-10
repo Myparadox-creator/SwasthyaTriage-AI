@@ -358,8 +358,8 @@ class GeminiVoiceAgent(VoiceAgent):
                         CaseMeasurement(
                             case_id=case.id,
                             name=m_name.title(),
-                            value=float(meas["value"]) if str(meas["value"]).replace(".", "", 1).isdigit() else 0.0,
-                            unit=str(meas.get("unit") or ""),
+                            value=str(meas["value"])[:64],
+                            unit=str(meas.get("unit") or "")[:32],
                             source=Provenance.AI_EXTRACTED,
                             collected_via="VOICE",
                             verified=False,

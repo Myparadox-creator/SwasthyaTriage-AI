@@ -104,7 +104,7 @@ def create_case(
             patient_id=patient.id,
             case_id=case.id,
             status=ConsentStatus.GRANTED,
-            consent_text_version=payload.consent_text_version,
+            consent_text_version=(payload.consent_text_version or "v1")[:16],
             language=payload.language,
         )
     )

@@ -179,7 +179,7 @@ export default function SonamFloatingAssistant() {
           language: lang,
           chief_concern: null,
           consent_accepted: true,
-          consent_text_version: 'v1_sonam_floating',
+          consent_text_version: 'v1_sonam',
         },
       })
       setCaseDetail(c)
