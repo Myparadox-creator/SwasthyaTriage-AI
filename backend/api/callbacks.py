@@ -2,8 +2,8 @@
 
 A patient can ask the AI assistant (Sonam) to call them back on a phone number.
 The request is queued as a `TeleCall` on the patient's case so the care team can
-place it. Nothing here dials a real number by itself — outbound telephony is
-simulated unless a real provider is configured (`settings.telephony_live`).
+place it; when a live provider (VideoSDK/SnapServe) is configured, the request
+places the real outbound call immediately, otherwise it is simulated.
 
 Consent, phone normalization, cooldown, daily caps and de-duplication are all
 enforced here rather than trusted to the client.
@@ -11,13 +11,14 @@ enforced here rather than trusted to the client.
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from auth.dependencies import get_current_user, require_roles
+from auth.dependencies import require_roles
 from config import settings
 from database.session import get_db
 from middleware.errors import AppError, NotFoundError
@@ -36,14 +37,19 @@ from schemas.telephony import (
     CallbackListResponse,
     CallbackRequestCreate,
     CallbackRequestOut,
+    SnapServeLeadIn,
 )
 from services.audit import AuditAction, record_audit
+from services.email.service import send_sonam_call_request_email
+from services.snapserve_leads import submit_snapserve_lead
 from services.telephony.phone import mask_phone, normalize_indian_phone
 from services.telephony.service import get_telephony_provider
 
 router = APIRouter(
     prefix="/api/patients/callback-requests", tags=["patient-callbacks"]
 )
+
+logger = logging.getLogger("swasthyatriage.callbacks")
 
 # Statuses that mean a call is still outstanding (no new request should be queued).
 _ACTIVE_STATUSES = (
@@ -188,7 +194,7 @@ def _enforce_limits(db: Session, patient_id: int, phone: str) -> None:
     )
     if recent:
         raise AppError(
-            f"Please wait a few minutes before requesting another callback.",
+            "Please wait a few minutes before requesting another callback.",
             status_code=429,
             code="callback_cooldown",
         )
@@ -269,6 +275,20 @@ def create_callback_request(
         or "Patient requested a Sonam callback for health information"
     )
 
+    try:
+        send_sonam_call_request_email(
+            db,
+            requester_name=patient.full_name,
+            requester_email=user.email,
+            phone=phone,
+            language=language.value,
+            purpose=purpose,
+            case_number=case.case_number,
+            source="Patient dashboard (Sonam callback)",
+        )
+    except Exception:  # noqa: BLE001 - never block the callback on email failure
+        logger.exception("Admin Sonam-request email failed for patient %s", patient.id)
+
     call = provider.create_outbound_call(
         db=db,
         case=case,
@@ -316,6 +336,27 @@ def create_callback_request(
     return _to_out(
         call, case=case, mode=settings.callback_mode, message=message
     )
+
+
+@router.post("/snapserve-lead", status_code=202)
+def submit_snapserve_lead_request(
+    payload: SnapServeLeadIn,
+    user: User = Depends(require_roles(Role.PATIENT)),
+    db: Session = Depends(get_db),
+) -> dict[str, bool]:
+    """Proxy a lead to SnapServe so the live API key never reaches the browser."""
+    patient = _get_patient(db, user)
+    sent = submit_snapserve_lead(
+        {
+            "phone": payload.phone,
+            "name": payload.name or patient.full_name,
+            "email": payload.email or user.email,
+            "purpose": payload.purpose,
+            "language": payload.language or "hi",
+            "source": payload.source or "SwasthyaFlow AI Patient Portal",
+        }
+    )
+    return {"sent": sent}
 
 
 @router.get("", response_model=CallbackListResponse)

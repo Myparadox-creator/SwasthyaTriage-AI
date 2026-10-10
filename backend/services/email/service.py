@@ -327,6 +327,39 @@ def send_security_alert_email(
     )
 
 
+def send_sonam_call_request_email(
+    db: Session,
+    *,
+    requester_name: str,
+    requester_email: str | None,
+    phone: str | None,
+    language: str | None,
+    purpose: str | None,
+    case_number: str | None = None,
+    source: str = "Patient portal",
+) -> EmailLog | None:
+    """Alert the platform admin that a user wants to talk to the Sonam agent."""
+    recipient = (settings.admin_notification_email or "").strip()
+    if not recipient:
+        return None
+    return dispatch_email(
+        db,
+        recipient_email=recipient,
+        recipient_name="Platform Admin",
+        template_name="sonam_call_request",
+        context={
+            "requester_name": requester_name,
+            "requester_email": requester_email or "",
+            "phone": phone or "",
+            "language": language or "en",
+            "purpose": purpose or "",
+            "case_number": case_number or "",
+            "source": source,
+            "time_str": datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
+        },
+    )
+
+
 def retry_failed_email(db: Session, log_id: int) -> EmailLog | None:
     """Retries sending a previously failed email from the outbox."""
     log = db.scalar(select(EmailLog).where(EmailLog.id == log_id))

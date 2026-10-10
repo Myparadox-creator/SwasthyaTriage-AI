@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from models.enums import CallStatus, MessageRole
+from models.enums import CallStatus
 
 
 class TranscriptOut(BaseModel):
@@ -115,6 +116,20 @@ class CallbackRequestOut(BaseModel):
 class CallbackListResponse(BaseModel):
     items: list[CallbackRequestOut]
     total: int
+
+
+class SnapServeLeadIn(BaseModel):
+    """Lead-capture payload forwarded to SnapServe server-side.
+
+    The live SnapServe API key stays on the backend; the browser never sees it.
+    """
+
+    phone: str = Field(min_length=5, max_length=32)
+    name: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=256)
+    purpose: str | None = Field(default=None, max_length=500)
+    language: str | None = Field(default=None, max_length=8)
+    source: str | None = Field(default=None, max_length=200)
 
 
 class TeleCallWebhookPayload(BaseModel):

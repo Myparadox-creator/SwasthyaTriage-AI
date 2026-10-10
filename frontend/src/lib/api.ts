@@ -21,9 +21,36 @@ export class ApiError extends Error {
 const ACCESS_KEY = 'st_access'
 let refreshPromise: Promise<boolean> | null = null
 
+export function isTokenValid(token: string | null): boolean {
+  if (!token) return false
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return false
+    const base64Url = parts[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    )
+    const payload = JSON.parse(jsonPayload)
+    if (!payload.exp) return true
+    return payload.exp * 1000 > Date.now() + 5000
+  } catch {
+    return false
+  }
+}
+
 export function getAccessToken(): string | null {
   try {
-    return localStorage.getItem(ACCESS_KEY)
+    const token = localStorage.getItem(ACCESS_KEY)
+    if (!token) return null
+    if (!isTokenValid(token)) {
+      localStorage.removeItem(ACCESS_KEY)
+      return null
+    }
+    return token
   } catch {
     return null
   }

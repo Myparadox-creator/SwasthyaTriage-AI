@@ -4,7 +4,6 @@ import { createRoot } from 'react-dom/client'
 import './i18n'
 import './index.css'
 import App from './App.tsx'
-import { ensureSnapServeWidgetLoaded } from './lib/snapserve'
 
 // Suppress benign Clerk development-key advisory warning in browser console
 if (typeof window !== 'undefined') {
@@ -16,9 +15,6 @@ if (typeof window !== 'undefined') {
     origWarn.apply(console, args)
   }
 }
-
-// Initialize SnapServe widget
-ensureSnapServeWidgetLoaded()
 
 // Auto-update Service Worker on deployment changes
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {

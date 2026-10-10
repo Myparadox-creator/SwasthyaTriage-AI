@@ -29,7 +29,8 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
-        globPatterns: ['**/*.{svg,png,woff2}'],
+        navigateFallback: null,
+        globPatterns: ['**/*.{js,css,svg,png,woff2}'],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
