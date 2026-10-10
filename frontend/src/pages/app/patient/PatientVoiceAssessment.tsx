@@ -353,10 +353,10 @@ export default function PatientVoiceAssessment() {
 
       const initialGreeting =
         lang === 'hi'
-          ? 'नमस्ते। कृपया बताएं आपको क्या समस्या हो रही है?'
+          ? 'नमस्ते! मैं सोनम हूँ, स्वास्थ्यफ्लो एआई की एआई हेल्थ असिस्टेंट। आपको किस हेल्थ प्रॉब्लम में मदद चाहिए?'
           : lang === 'od'
-          ? 'ନମସ୍କାର। ଦୟାକରି କୁହନ୍ତୁ ଆପଣଙ୍କର କଣ ଅସୁବିଧା ହେଉଛି?'
-          : 'Namaste. Please tell me what health concern you are experiencing today.'
+          ? 'ନମସ୍କାର! ମୁଁ ସୋନମ, ସ୍ୱାସ୍ଥ୍ୟଫ୍ଲୋ ଏଆଇର ଏଆଇ ସ୍ୱାସ୍ଥ୍ୟ ସହାୟିକା। ଆପଣଙ୍କୁ କେଉଁ ସ୍ୱାସ୍ଥ୍ୟ ସମସ୍ୟାରେ ସାହାଯ୍ୟ ଦରକାର?'
+          : 'Namaste! I am Sonam, an AI health intake assistant for SwasthyaFlow AI. What health concern do you need help with today?'
 
       setCurrentPrompt(initialGreeting)
       beginTurnSpeech(initialGreeting, () => void startListening(), () => {
@@ -920,8 +920,8 @@ export default function PatientVoiceAssessment() {
               <HeartPulse className="h-5 w-5 animate-pulse" />
             </span>
             <div className="min-w-0">
-              <h1 className="text-base font-bold text-slate-900">AI Voice Assessment</h1>
-              <p className="truncate text-[11px] text-slate-500">Real-time Triage · VAD Silence Detection</p>
+              <h1 className="text-base font-bold text-slate-900">Talk to Sonam — AI Health Intake</h1>
+              <p className="truncate text-[11px] text-slate-500">Multilingual Clinical Triage · Direct Doctor Queue Delivery</p>
             </div>
           </div>
 
@@ -956,11 +956,10 @@ export default function PatientVoiceAssessment() {
                 <Mic className="h-8 w-8 sm:h-10 sm:w-10" />
               </span>
               <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
-                Ready to speak with AI Assistant?
+                Ready to speak with Sonam?
               </h2>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Speak naturally in Hindi, Odia, or English. The assistant responds within seconds to
-                gather facts and prepare a triage summary for your doctor.
+                Speak naturally in Hindi, Odia, or English. Sonam is an AI health assistant who gathers facts, checks for red-flag symptoms, and sends your structured summary straight to the doctor.
               </p>
               <button
                 type="button"
@@ -968,7 +967,7 @@ export default function PatientVoiceAssessment() {
                 className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-teal-700 px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-teal-700/25 transition hover:bg-teal-800 active:scale-95"
               >
                 <Mic className="h-4 w-4" />
-                Start Voice Assessment
+                Start Voice Conversation with Sonam
               </button>
             </div>
           ) : (

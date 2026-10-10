@@ -40,8 +40,9 @@ export default function AppShell() {
     if (role === 'PATIENT') {
       return [
         { to: '/app/patient/dashboard', label: 'My Dashboard', icon: LayoutDashboard },
+        { to: '/app/patient/voice', label: 'Talk to Sonam (Voice)', icon: Mic },
+        { to: '/app/patient/callback', label: 'Request Phone Call', icon: PhoneCall },
         { to: '/app/patient/pharmacies', label: 'Clinics, Hospitals & Stores', icon: MapPin },
-        { to: '/app/patient/voice', label: 'Talk to AI (Voice)', icon: Mic },
         { to: '/app/patient/uploads', label: 'Upload Reports', icon: Upload },
       ]
     }

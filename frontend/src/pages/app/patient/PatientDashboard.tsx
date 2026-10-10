@@ -90,7 +90,41 @@ export default function PatientDashboard() {
         </div>
       </div>
 
-      {/* Main Question & 3 Primary Intake Modes */}
+      {/* Featured AI Voice Intake Assistant — Sonam */}
+      <div className="relative overflow-hidden rounded-3xl border-2 border-teal-500 bg-gradient-to-r from-teal-900 via-teal-800 to-emerald-900 p-5 text-white shadow-xl shadow-teal-950/20 sm:p-6">
+        <div className="relative z-10 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full bg-teal-500/20 px-3 py-1 text-xs font-bold text-teal-200 border border-teal-400/30">
+              <span className="h-2 w-2 rounded-full bg-teal-400 animate-ping" />
+              <span>Sonam AI Healthcare Intake Assistant</span>
+            </div>
+            <h2 className="text-xl font-extrabold sm:text-2xl text-white">
+              Speak with Sonam in Hindi, Odia, or English
+            </h2>
+            <p className="text-xs text-teal-100/90 leading-relaxed sm:text-sm">
+              Sonam organizes your symptoms, duration, and vitals into a structured clinical note and delivers it straight to your doctor for review.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/app/patient/voice"
+              className="inline-flex items-center gap-2 rounded-xl bg-teal-400 px-4 py-2.5 text-xs font-extrabold text-teal-950 shadow-md transition hover:bg-teal-300 active:scale-95 sm:text-sm"
+            >
+              <Mic className="h-4 w-4" />
+              <span>Talk to Sonam Now</span>
+            </Link>
+            <Link
+              to="/app/patient/callback"
+              className="inline-flex items-center gap-2 rounded-xl border border-teal-300/40 bg-teal-800/60 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-teal-700 active:scale-95 sm:text-sm"
+            >
+              <PhoneCall className="h-4 w-4 text-teal-200" />
+              <span>Get a Phone Call</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Question & 4 Primary Intake Modes */}
       <div>
         <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
           How would you like to share your health information?
