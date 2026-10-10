@@ -109,7 +109,7 @@ export default function AppPermissionsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn select-none">
-      <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-teal-500/30 bg-slate-900 text-slate-100 shadow-2xl shadow-teal-950/80 p-6 sm:p-7 transition-all">
+      <div className="relative w-full max-w-md max-h-[85vh] overflow-y-auto rounded-3xl border border-teal-500/30 bg-slate-900 text-slate-100 shadow-2xl shadow-teal-950/80 p-5 sm:p-7 transition-all">
         {/* Glow Ambient Orbs */}
         <div className="pointer-events-none absolute -top-24 -right-24 h-48 w-48 rounded-full bg-teal-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-24 h-48 w-48 rounded-full bg-emerald-500/20 blur-3xl" />

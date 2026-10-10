@@ -91,7 +91,7 @@ export default function Followups() {
   return (
     <div className="mx-auto max-w-5xl">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">{t('appShell.nav.followups')}</h1>
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{t('appShell.nav.followups')}</h1>
         <p className="mt-1 text-sm text-slate-500">{t('hcw.followups.subtitle')}</p>
       </div>
 
@@ -163,13 +163,13 @@ export default function Followups() {
 
             <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-500">
               <span>{t('hcw.followups.detail.requestedBy')}</span>
-              <span className="text-slate-700">{selected.requested_by_name ?? '—'}</span>
+              <span className="break-words text-slate-700">{selected.requested_by_name ?? '—'}</span>
               <span>{t('hcw.followups.detail.created')}</span>
-              <span className="text-slate-700">{new Date(selected.created_at).toLocaleString()}</span>
+              <span className="break-words text-slate-700">{new Date(selected.created_at).toLocaleString()}</span>
               {selected.completed_at && (
                 <>
                   <span>{t('hcw.followups.detail.completed')}</span>
-                  <span className="text-slate-700">
+                  <span className="break-words text-slate-700">
                     {new Date(selected.completed_at).toLocaleString()}
                   </span>
                 </>
@@ -237,7 +237,7 @@ export default function Followups() {
                   placeholder={t('hcw.followups.form.summaryPlaceholder')}
                   textarea
                 />
-                <div className="mt-3 flex justify-end gap-2">
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
                     className="btn-ghost"
@@ -270,7 +270,7 @@ export default function Followups() {
                   onChange={setCancelReason}
                   textarea
                 />
-                <div className="mt-3 flex justify-end gap-2">
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
                     className="btn-ghost"
@@ -303,7 +303,7 @@ export default function Followups() {
               >
                 {t('hcw.followups.detail.openCase')}
               </Link>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {selected.status === 'PENDING' && mode === 'view' && (
                   <button
                     type="button"

@@ -31,7 +31,7 @@ export default function AuditCenter() {
   return (
     <div className="mx-auto max-w-5xl">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">{t('appShell.nav.audit')}</h1>
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{t('appShell.nav.audit')}</h1>
         <p className="mt-1 text-sm text-slate-500">{t('hcw.audit.subtitle')}</p>
       </div>
 
@@ -49,13 +49,13 @@ export default function AuditCenter() {
         )}
         {!loading && !error && data && data.items.length > 0 && (
           <div className="card overflow-x-auto !p-0">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">{t('hcw.audit.time')}</th>
-                  <th className="px-4 py-3 font-semibold">{t('hcw.audit.actor')}</th>
-                  <th className="px-4 py-3 font-semibold">{t('hcw.audit.actionHeader')}</th>
-                  <th className="px-4 py-3 font-semibold">{t('hcw.audit.case')}</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-semibold">{t('hcw.audit.time')}</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-semibold">{t('hcw.audit.actor')}</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-semibold">{t('hcw.audit.actionHeader')}</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-semibold">{t('hcw.audit.case')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

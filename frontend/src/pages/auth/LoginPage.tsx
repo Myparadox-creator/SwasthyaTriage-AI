@@ -172,7 +172,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="card w-full border border-slate-200/90 bg-white/95 p-5 shadow-xl shadow-slate-200/50 backdrop-blur-md sm:p-7 md:p-8 transition-all">
+    <div className="card w-full max-w-md mx-auto border border-slate-200/90 bg-white/95 p-4 shadow-xl shadow-slate-200/50 backdrop-blur-md sm:p-6 md:p-8 transition-all">
       {/* Existing Session Alert Banner (if user already logged in) */}
       {currentUser && (
         <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50/80 p-3.5 text-xs text-teal-900 shadow-sm">
@@ -184,7 +184,7 @@ export default function LoginPage() {
               <span className="text-[11px] text-teal-700">({currentUser.role})</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => navigate(homeForRole(currentUser.role))}
@@ -256,7 +256,7 @@ export default function LoginPage() {
                 >
                   <Icon className="h-4 w-4" />
                 </div>
-                <span className="text-xs font-bold leading-tight line-clamp-1">
+                <span className="text-xs font-bold leading-tight text-center">
                   {role.title}
                 </span>
                 <span className="mt-0.5 text-[10px] text-slate-400 leading-tight">

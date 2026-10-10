@@ -174,7 +174,7 @@ export default function NotificationCenterDropdown() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 z-50 w-88 sm:w-96 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-300/40 animate-in fade-in zoom-in-95">
+        <div className="absolute right-0 mt-2 z-50 w-80 max-w-[calc(100vw-2rem)] sm:w-96 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-300/40 animate-in fade-in zoom-in-95">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
@@ -206,7 +206,7 @@ export default function NotificationCenterDropdown() {
           </div>
 
           {/* Filter Pills */}
-          <div className="mt-2.5 flex items-center gap-1.5 border-b border-slate-100 pb-2.5 text-[11px]">
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-b border-slate-100 pb-2.5 text-[11px]">
             <button
               type="button"
               onClick={() => setFilter('ALL')}

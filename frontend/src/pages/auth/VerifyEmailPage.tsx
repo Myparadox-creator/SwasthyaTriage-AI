@@ -46,9 +46,9 @@ export default function VerifyEmailPage() {
 
   if (loading) {
     return (
-      <div className="card w-full border border-slate-200/90 bg-white/95 p-8 shadow-xl text-center">
+      <div className="card w-full max-w-md mx-auto border border-slate-200/90 bg-white/95 p-5 shadow-xl sm:p-8 text-center">
         <Loader2 className="mx-auto h-10 w-10 animate-spin text-teal-600 mb-4" />
-        <h1 className="text-xl font-bold text-slate-900">Verifying Email Address...</h1>
+        <h1 className="text-lg font-bold text-slate-900 sm:text-xl">Verifying Email Address...</h1>
         <p className="mt-2 text-sm text-slate-500">
           Please wait while we validate your security token.
         </p>
@@ -58,11 +58,11 @@ export default function VerifyEmailPage() {
 
   if (success) {
     return (
-      <div className="card w-full border border-slate-200/90 bg-white/95 p-8 shadow-xl text-center">
+      <div className="card w-full max-w-md mx-auto border border-slate-200/90 bg-white/95 p-5 shadow-xl sm:p-8 text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-100 text-teal-700">
           <CheckCircle2 className="h-8 w-8" />
         </div>
-        <h1 className="text-2xl font-extrabold text-slate-900">Email Address Verified!</h1>
+        <h1 className="text-xl font-extrabold text-slate-900 sm:text-2xl">Email Address Verified!</h1>
         <p className="mt-2 text-sm text-slate-600">
           Thank you for verifying your email address on SwasthyaFlow AI. Your account is fully active.
         </p>
@@ -78,12 +78,12 @@ export default function VerifyEmailPage() {
   }
 
   return (
-    <div className="card w-full border border-slate-200/90 bg-white/95 p-7 shadow-xl">
+    <div className="card w-full max-w-md mx-auto border border-slate-200/90 bg-white/95 p-5 shadow-xl sm:p-7">
       <div className="text-center mb-6">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-700">
           <ShieldAlert className="h-6 w-6" />
         </div>
-        <h1 className="text-xl font-bold text-slate-900">Verification Link Expired</h1>
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Verification Link Expired</h1>
         <p className="mt-1 text-sm text-slate-600">
           {error || 'This email verification token has expired or is invalid.'}
         </p>

@@ -7,8 +7,8 @@ export default function AdminDashboard() {
   const user = useAuthStore((s) => s.user)!
   return (
     <div>
-      <div className="card mb-6 p-6">
-        <h1 className="text-xl font-bold text-slate-900">Welcome, {user.full_name}</h1>
+      <div className="card mb-6 p-4 sm:p-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 break-words">Welcome, {user.full_name}</h1>
         <p className="mt-1 text-sm text-slate-500">Super Admin · {t('appName')}</p>
       </div>
       <ComingSoon title={t('appShell.nav.dashboard')} />

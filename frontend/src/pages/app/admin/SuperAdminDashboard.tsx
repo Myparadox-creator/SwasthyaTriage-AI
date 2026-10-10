@@ -240,24 +240,24 @@ export default function SuperAdminDashboard() {
         <div className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-teal-500/15 blur-3xl" />
 
         <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3.5">
-            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-400 text-slate-950 shadow-lg shadow-purple-500/30">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-400 text-slate-950 shadow-lg shadow-purple-500/30">
               <Server className="h-7 w-7 text-slate-950" />
             </span>
-            <div>
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-purple-400/30 bg-purple-500/20 px-3 py-1 text-xs font-bold text-purple-200 backdrop-blur-md">
+            <div className="min-w-0">
+              <div className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border border-purple-400/30 bg-purple-500/20 px-3 py-1 text-xs font-bold text-purple-200 backdrop-blur-md">
                 <span>🛡️ State Health Directorate · Global Platform Control</span>
               </div>
-              <h1 className="mt-2 text-2xl sm:text-3xl font-black text-white tracking-tight">
+              <h1 className="mt-2 text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight break-words">
                 Odisha Tele-Triage Platform Command Center
               </h1>
-              <p className="mt-1 text-xs sm:text-sm text-purple-200/80">
+              <p className="mt-1 text-xs sm:text-sm text-purple-200/80 break-words">
                 Super Administrator: <strong className="text-white">{user.full_name}</strong> · Multi-Tenant Odisha Health Network · AI Safety Rules & Email Infrastructure
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={loadData}
@@ -382,13 +382,13 @@ export default function SuperAdminDashboard() {
           {/* Email Provider Status Banner */}
           <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-6 text-white shadow-lg">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/20 text-sky-400">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-500/20 text-sky-400">
                   <Mail className="h-6 w-6" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-white">{emailStatus?.provider || 'Transactional Email'} System</h2>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-bold text-white break-words">{emailStatus?.provider || 'Transactional Email'} System</h2>
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                         emailStatus?.configured
@@ -423,7 +423,7 @@ export default function SuperAdminDashboard() {
           </div>
 
           {/* Stat Cards */}
-          <div className="grid gap-4 sm:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-xs font-bold uppercase">Total Dispatched</span>
@@ -483,17 +483,17 @@ export default function SuperAdminDashboard() {
 
             {testFeedback && (
               <div
-                className={`rounded-xl border p-3 text-xs flex items-center justify-between ${
+                className={`rounded-xl border p-3 text-xs flex items-center justify-between gap-2 ${
                   testFeedback.success
                     ? 'border-emerald-500/30 bg-emerald-950/40 text-emerald-300'
                     : 'border-red-500/30 bg-red-950/40 text-red-300'
                 }`}
               >
-                <span>{testFeedback.msg}</span>
+                <span className="min-w-0 break-words">{testFeedback.msg}</span>
                 <button
                   type="button"
                   onClick={() => setTestFeedback(null)}
-                  className="text-slate-400 hover:text-white ml-2 text-sm"
+                  className="text-slate-400 hover:text-white shrink-0 text-sm"
                 >
                   ✕
                 </button>
@@ -531,7 +531,7 @@ export default function SuperAdminDashboard() {
                   setSendingTest(false)
                 }
               }}
-              className="grid gap-3 sm:grid-cols-3 items-end"
+              className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-end"
             >
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Recipient Address:</label>
@@ -583,7 +583,7 @@ export default function SuperAdminDashboard() {
             <p className="text-xs text-slate-400">
               Responsive SaaS HTML + plaintext templates compliant with healthcare privacy regulations (non-diagnostic, no raw symptoms in unauthenticated email bodies).
             </p>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[
                 { name: 'welcome', label: 'Welcome to SwasthyaFlow', purpose: 'Account onboarding & welcome' },
                 { name: 'email_verification', label: 'Email Verification', purpose: 'Account security & verification CTA' },
@@ -608,15 +608,15 @@ export default function SuperAdminDashboard() {
 
           {/* Recent Dispatch Logs */}
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-white space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
                 <h3 className="text-sm font-bold text-white">Recent Transactional Email Logs</h3>
-                <p className="text-xs text-slate-400">Audit trail of all transactional notifications dispatched by backend triggers.</p>
+                <p className="text-xs text-slate-400 break-words">Audit trail of all transactional notifications dispatched by backend triggers.</p>
               </div>
               <button
                 type="button"
                 onClick={loadData}
-                className="text-xs text-teal-400 hover:underline flex items-center gap-1"
+                className="text-xs text-teal-400 hover:underline flex items-center gap-1 shrink-0"
               >
                 <RefreshCw className="h-3 w-3" /> Refresh Logs
               </button>
@@ -626,7 +626,7 @@ export default function SuperAdminDashboard() {
               <p className="text-xs text-slate-500 py-4 text-center">No email dispatches recorded yet.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full min-w-[840px] text-left text-xs">
                   <thead className="border-b border-slate-800 bg-slate-950 text-slate-400 font-semibold">
                     <tr>
                       <th className="p-3">Time</th>
@@ -703,17 +703,17 @@ export default function SuperAdminDashboard() {
       {/* TAB 2: FACILITIES MANAGEMENT */}
       {activeTab === 'facilities' && (
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-white space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-bold text-white">Registered Healthcare Facilities</h2>
-              <p className="text-xs text-slate-400">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-white break-words">Registered Healthcare Facilities</h2>
+              <p className="text-xs text-slate-400 break-words">
                 Manage PHCs, CHCs, Government Hospitals, and Industrial Clinics.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setIsAddFacilityOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2 text-xs font-bold text-slate-950 shadow hover:bg-teal-400"
+              className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2 text-xs font-bold text-slate-950 shadow hover:bg-teal-400 shrink-0"
             >
               <Plus className="h-4 w-4" />
               Register New Facility
@@ -721,7 +721,7 @@ export default function SuperAdminDashboard() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[760px] text-left text-xs">
               <thead className="border-b border-slate-800 bg-slate-950 text-slate-400 font-semibold">
                 <tr>
                   <th className="p-3">Facility Code</th>
@@ -768,7 +768,7 @@ export default function SuperAdminDashboard() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[760px] text-left text-xs">
               <thead className="border-b border-slate-800 bg-slate-950 text-slate-400 font-semibold">
                 <tr>
                   <th className="p-3">Full Name</th>
@@ -818,9 +818,9 @@ export default function SuperAdminDashboard() {
           {/* Top Bar: Benchmarking Action */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-white">
             <div>
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-teal-400" />
-                <h2 className="text-base font-bold text-white">Multilingual AI Quality & Evaluation Benchmark</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <Sparkles className="h-5 w-5 text-teal-400 shrink-0" />
+                <h2 className="text-base font-bold text-white break-words">Multilingual AI Quality & Evaluation Benchmark</h2>
                 <span className="rounded bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 text-[10px] font-mono font-bold">
                   {aiReport?.overall_metrics?.calibration_status || 'EMPIRICALLY_EVALUATED'}
                 </span>
@@ -913,7 +913,7 @@ export default function SuperAdminDashboard() {
 
             {aiTrend && aiTrend.run_count > 0 ? (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full min-w-[760px] text-left text-xs">
                   <thead className="border-b border-slate-800 bg-slate-950 text-slate-400 font-semibold">
                     <tr>
                       <th className="p-3">Metric</th>
@@ -1001,7 +1001,7 @@ export default function SuperAdminDashboard() {
               Language-Wise Quality Breakdown (Odia · Hindi · Indian English)
             </h3>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[720px] text-left text-xs">
                 <thead className="border-b border-slate-800 bg-slate-950 text-slate-400 font-semibold">
                   <tr>
                     <th className="p-3">Language</th>
@@ -1049,7 +1049,7 @@ export default function SuperAdminDashboard() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 text-xs font-mono shrink-0">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono">
                     <span className="text-slate-400">WER: <strong className="text-teal-300">{(cs.wer * 100).toFixed(1)}%</strong></span>
                     <span className="text-slate-400">CER: <strong className="text-cyan-300">{(cs.cer * 100).toFixed(1)}%</strong></span>
                     <span className="text-slate-400">Entity F1: <strong className="text-emerald-300">{(cs.entity_f1 * 100).toFixed(1)}%</strong></span>
@@ -1075,7 +1075,7 @@ export default function SuperAdminDashboard() {
                   className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2 text-teal-400 font-mono font-bold"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="font-semibold text-slate-300">Extraction Temperature:</label>
                   <input
@@ -1119,10 +1119,10 @@ export default function SuperAdminDashboard() {
                 key={rule.id}
                 className="rounded-2xl border border-slate-800 bg-slate-950 p-4 transition hover:border-slate-700"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <span className="font-mono text-xs font-bold text-teal-400">{rule.code}</span>
-                    <span className="text-xs font-bold text-white">— {rule.name}</span>
+                    <span className="text-xs font-bold text-white break-words">— {rule.name}</span>
                   </div>
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
@@ -1214,7 +1214,7 @@ export default function SuperAdminDashboard() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-white space-y-4">
           <h2 className="text-base font-bold text-white">Cross-Facility Global Audit Registry</h2>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[760px] text-left text-xs">
               <thead className="border-b border-slate-800 bg-slate-950 text-slate-400 font-semibold">
                 <tr>
                   <th className="p-3">Timestamp</th>
@@ -1251,7 +1251,7 @@ export default function SuperAdminDashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <form
             onSubmit={handleCreateFacility}
-            className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-700 p-6 text-white shadow-2xl space-y-4"
+            className="w-full max-h-[90vh] overflow-y-auto max-w-md rounded-3xl bg-slate-900 border border-slate-700 p-4 sm:p-6 text-white shadow-2xl space-y-4"
           >
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-base font-bold text-white">Register New Healthcare Facility</h3>

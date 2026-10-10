@@ -24,7 +24,7 @@ export default function LanguagePicker({ align = 'end' }: { align?: 'start' | 'e
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div
-            className={`absolute z-20 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg ${
+            className={`absolute z-20 mt-1.5 w-52 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg ${
               align === 'end' ? 'right-0' : 'left-0'
             }`}
           >

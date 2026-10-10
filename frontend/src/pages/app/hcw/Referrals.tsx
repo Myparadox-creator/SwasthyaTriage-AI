@@ -82,7 +82,7 @@ export default function Referrals() {
   return (
     <div className="mx-auto max-w-5xl">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">{t('appShell.nav.referrals')}</h1>
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{t('appShell.nav.referrals')}</h1>
         <p className="mt-1 text-sm text-slate-500">{t('hcw.referrals.subtitle')}</p>
       </div>
 
@@ -157,21 +157,21 @@ export default function Referrals() {
 
             <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-500">
               <span>{t('hcw.referrals.detail.destination')}</span>
-              <span className="text-slate-700">
+              <span className="break-words text-slate-700">
                 {selected.destination_facility ?? t('hcw.referrals.noDestination')}
               </span>
               <span>{t('hcw.referrals.detail.reason')}</span>
-              <span className="text-slate-700">
+              <span className="break-words text-slate-700">
                 {selected.reason_for_referral ?? t('hcw.referrals.noReason')}
               </span>
               <span>{t('hcw.referrals.detail.created')}</span>
-              <span className="text-slate-700">
+              <span className="break-words text-slate-700">
                 {new Date(selected.created_at).toLocaleString()}
               </span>
               {selected.verified_at && (
                 <>
                   <span>{t('hcw.referrals.detail.verified')}</span>
-                  <span className="text-slate-700">
+                  <span className="break-words text-slate-700">
                     {new Date(selected.verified_at).toLocaleString()}
                   </span>
                 </>
@@ -179,7 +179,7 @@ export default function Referrals() {
               {selected.finalized_at && (
                 <>
                   <span>{t('hcw.referrals.detail.finalized')}</span>
-                  <span className="text-slate-700">
+                  <span className="break-words text-slate-700">
                     {new Date(selected.finalized_at).toLocaleString()}
                   </span>
                 </>
@@ -217,7 +217,7 @@ export default function Referrals() {
               >
                 {t('hcw.referrals.detail.openCase')}
               </Link>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {selected.status === 'DRAFT' && (
                   <button
                     type="button"

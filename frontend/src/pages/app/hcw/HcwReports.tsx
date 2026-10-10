@@ -140,7 +140,7 @@ export default function HcwReports() {
             <TrendingUp className="h-3.5 w-3.5 text-teal-700" />
             <span>Facility Quality & Triage Reports</span>
           </div>
-          <h1 className="mt-2 text-2xl font-black text-slate-900">
+          <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">
             Clinical Triage Reporting & Export
           </h1>
           <p className="mt-1 text-xs text-slate-500">
@@ -201,7 +201,7 @@ export default function HcwReports() {
           ) : (
             <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
           )}
-          <span>{feedbackMsg.text}</span>
+          <span className="break-words">{feedbackMsg.text}</span>
         </div>
       )}
 
@@ -326,14 +326,14 @@ export default function HcwReports() {
       {/* Multi-Sheet Excel Export Documentation Section */}
       <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5 text-teal-800" />
-              <h3 className="text-sm font-bold text-teal-950">
+          <div className="min-w-0 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 shrink-0 text-teal-800" />
+              <h3 className="min-w-0 break-words text-sm font-bold text-teal-950">
                 Official Multi-Sheet Excel Workbook & Patient Registry
               </h3>
             </div>
-            <p className="mt-1 text-xs text-teal-800 leading-relaxed">
+            <p className="mt-1 break-words text-xs text-teal-800 leading-relaxed">
               Export an authorized, audit-logged spreadsheet compiled directly from PostgreSQL containing 6 structured sheets with frozen headers, zebra-striping, and auto-filters:
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-teal-900">

@@ -159,14 +159,14 @@ export default function AppShell() {
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-72 shadow-xl">{Sidebar}</aside>
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[80vw] overflow-y-auto shadow-xl">{Sidebar}</aside>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top Header Bar for Desktop & Mobile */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/90 bg-white/95 px-4 lg:px-6 backdrop-blur-md">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-slate-200/90 bg-white/95 px-3 sm:px-4 lg:px-6 backdrop-blur-md">
+          <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setOpen(true)}
@@ -174,13 +174,13 @@ export default function AppShell() {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <Link to="/" className="font-extrabold text-teal-800 lg:hidden flex items-center gap-1.5">
-              <HeartPulse className="h-5 w-5 text-teal-600" />
-              <span>{t('appName')}</span>
+            <Link to="/" className="flex min-w-0 items-center gap-1.5 font-extrabold text-teal-800 lg:hidden">
+              <HeartPulse className="h-5 w-5 shrink-0 text-teal-600" />
+              <span className="truncate">{t('appName')}</span>
             </Link>
 
             {/* Desktop breadcrumb / role indicator */}
-            <div className="hidden lg:flex items-center gap-2.5">
+            <div className="hidden min-w-0 lg:flex items-center gap-2.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Workspace:</span>
               {role === 'HEALTHCARE_WORKER' && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs font-bold text-blue-800 shadow-2xs">
@@ -207,13 +207,13 @@ export default function AppShell() {
                 </span>
               )}
               {user.facility_name && (
-                <span className="text-xs font-medium text-slate-500">· {user.facility_name}</span>
+                <span className="min-w-0 truncate text-xs font-medium text-slate-500">· {user.facility_name}</span>
               )}
             </div>
           </div>
 
           {/* Right Header Utilities: Network Status + Permissions + Notifications */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => setShowPermissionsModal(true)}
@@ -229,7 +229,7 @@ export default function AppShell() {
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-6">
+        <main className="flex-1 p-4 sm:p-6">
           <Outlet />
         </main>
       </div>

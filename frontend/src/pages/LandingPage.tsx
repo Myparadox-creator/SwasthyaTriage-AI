@@ -287,7 +287,7 @@ export default function LandingPage() {
       {/* ==================================================================== */}
       <div className="border-b border-teal-500/20 bg-gradient-to-r from-slate-950 via-teal-950/70 to-slate-950 px-4 py-2 text-xs">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 text-slate-300">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-semibold text-teal-300">Govt. of Odisha Health & Family Welfare Aligned</span>
             <span className="hidden text-slate-500 sm:inline">|</span>
@@ -296,7 +296,7 @@ export default function LandingPage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-4 text-[11px]">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
             <div className="flex items-center gap-2 font-mono">
               <span className="text-slate-400">Emergency Ambulance:</span>
               <span className="font-bold text-rose-400">108</span>
@@ -361,7 +361,7 @@ export default function LandingPage() {
                   ସ୍ୱାସ୍ଥ୍ୟ ଫ୍ଲୋ
                 </span>
               </div>
-              <p className="text-[10px] font-medium tracking-wide text-slate-400 uppercase">
+              <p className="hidden text-[10px] font-medium tracking-wide text-slate-400 uppercase sm:block">
                 Multimodal Clinical Triage & Handoff Platform
               </p>
             </div>
@@ -421,7 +421,7 @@ export default function LandingPage() {
         {mobileMenuOpen && (
           <div className="border-b border-slate-800 bg-slate-950/98 px-4 py-5 backdrop-blur-2xl lg:hidden animate-fadeIn">
             {/* Mobile Language Switcher */}
-            <div className="mb-4 flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
               <span className="flex items-center gap-2 text-xs font-semibold text-slate-300">
                 <Languages className="h-4 w-4 text-teal-400" />
                 <span>Language / ଭାଷା:</span>
@@ -619,7 +619,7 @@ export default function LandingPage() {
       {/* ==================================================================== */}
       {/* 4. INTERACTIVE CLINICAL TRIAGE SIMULATOR (AUTHENTIC DEMO WIDGET)     */}
       {/* ==================================================================== */}
-      <section id="clinical-simulator" className="border-t border-slate-800/80 bg-slate-900/40 py-16 lg:py-24">
+      <section id="clinical-simulator" className="border-t border-slate-800/80 bg-slate-900/40 py-12 sm:py-16 lg:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -658,7 +658,7 @@ export default function LandingPage() {
                       : 'border border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-900/80'
                   }`}
                 >
-                  <div className="flex w-full items-center justify-between">
+                  <div className="flex w-full flex-wrap items-center justify-between gap-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                       Scenario 0{idx + 1}
                     </span>
@@ -678,7 +678,7 @@ export default function LandingPage() {
             <div className="grid gap-6 lg:grid-cols-12">
               {/* Left Column: Patient Speech & Audio Waveform */}
               <div className="space-y-4 lg:col-span-5">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-ping" />
                     <span className="text-xs font-bold uppercase tracking-wider text-rose-400">
@@ -696,7 +696,7 @@ export default function LandingPage() {
                       <Mic className="h-5 w-5 animate-pulse" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <div className="flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
                         <span>Patient: {currentScenario.patientProfile.gender}, {currentScenario.patientProfile.age} yrs</span>
                         <span>·</span>
                         <span>{currentScenario.patientProfile.location}</span>
@@ -730,7 +730,7 @@ export default function LandingPage() {
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
                     Extracted Patient Vitals:
                   </span>
-                  <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
                     <div className="rounded-xl border border-slate-800 bg-slate-950 p-2">
                       <span className="text-[10px] text-slate-500">TEMP</span>
                       <p className="mt-0.5 text-xs font-bold text-amber-300">{currentScenario.vitals.temp}</p>
@@ -850,14 +850,14 @@ export default function LandingPage() {
       {/* ==================================================================== */}
       {/* 5. THE GROUND REALITY & PROBLEM STATEMENT COMPARISON                 */}
       {/* ==================================================================== */}
-      <section id="ground-reality" className="py-20 lg:py-28">
+      <section id="ground-reality" className="py-12 sm:py-16 lg:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-950/60 px-3.5 py-1 text-xs font-semibold text-teal-300">
               <Building2 className="h-3.5 w-3.5 text-teal-400" />
               <span>Public Health Infrastructure Reality</span>
             </span>
-            <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">
+            <h2 className="mt-4 text-2xl font-black text-white sm:text-3xl lg:text-4xl">
               Why Traditional Rural Healthcare Needs SwasthyaFlow AI
             </h2>
             <p className="mt-3 text-sm sm:text-base text-slate-300 leading-relaxed">
@@ -917,7 +917,7 @@ export default function LandingPage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[640px] text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400">
                     <th className="px-6 py-3.5 font-bold uppercase tracking-wider">Clinical Dimension</th>
@@ -971,14 +971,14 @@ export default function LandingPage() {
       {/* ==================================================================== */}
       {/* 6. 5-STAGE CLINICAL PIPELINE ARCHITECTURE                            */}
       {/* ==================================================================== */}
-      <section id="pipeline" className="border-t border-slate-800/80 bg-slate-900/40 py-20 lg:py-28">
+      <section id="pipeline" className="border-t border-slate-800/80 bg-slate-900/40 py-12 sm:py-16 lg:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-950/60 px-3.5 py-1 text-xs font-semibold text-teal-300">
               <Layers className="h-3.5 w-3.5 text-teal-400" />
               <span>Architectural Rigor</span>
             </span>
-            <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">
+            <h2 className="mt-4 text-2xl font-black text-white sm:text-3xl lg:text-4xl">
               5-Stage Clinical Pipeline Architecture
             </h2>
             <p className="mt-3 text-sm sm:text-base text-slate-300 leading-relaxed">
@@ -1060,14 +1060,14 @@ export default function LandingPage() {
       {/* ==================================================================== */}
       {/* 7. ROLE-BASED COMMAND PORTALS (1-CLICK TEST LOGIN MATRIX)            */}
       {/* ==================================================================== */}
-      <section id="portals" className="py-20 lg:py-28">
+      <section id="portals" className="py-12 sm:py-16 lg:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-950/60 px-3.5 py-1 text-xs font-semibold text-teal-300">
               <UserCheck className="h-3.5 w-3.5 text-teal-400" />
               <span>Multi-Stakeholder Command Portals</span>
             </span>
-            <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">
+            <h2 className="mt-4 text-2xl font-black text-white sm:text-3xl lg:text-4xl">
               Engineered for Every Tier of Healthcare Delivery
             </h2>
             <p className="mt-3 text-sm sm:text-base text-slate-300 leading-relaxed">
@@ -1159,7 +1159,7 @@ export default function LandingPage() {
 
                   <div className="mt-4 space-y-3 font-mono text-xs">
                     <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
-                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <div className="flex flex-wrap items-center justify-between gap-x-2 text-[11px] text-slate-400">
                         <span>AUTHENTICATED USER:</span>
                         <span className="font-bold text-teal-400">ROLE_VERIFIED</span>
                       </div>
@@ -1169,11 +1169,11 @@ export default function LandingPage() {
 
                     <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
                       <span className="text-[11px] text-slate-500">SESSION TELEMETRY:</span>
-                      <div className="mt-1 flex items-center justify-between text-slate-300">
+                      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 text-slate-300">
                         <span>Audit Protocol:</span>
                         <span className="text-emerald-400 font-bold">AES-256 ENCRYPTED</span>
                       </div>
-                      <div className="mt-1 flex items-center justify-between text-slate-300">
+                      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 text-slate-300">
                         <span>ABDM FHIR Bridge:</span>
                         <span className="text-teal-400 font-bold">ACTIVE M1/M2/M3</span>
                       </div>
@@ -1195,7 +1195,7 @@ export default function LandingPage() {
       {/* ==================================================================== */}
       {/* 8. ACTIVE PHC / CHC DISTRICT NETWORK IN ODISHA                       */}
       {/* ==================================================================== */}
-      <section id="phc-network" className="border-t border-slate-800/80 bg-slate-900/40 py-20 lg:py-28">
+      <section id="phc-network" className="border-t border-slate-800/80 bg-slate-900/40 py-12 sm:py-16 lg:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-10 lg:grid-cols-12 lg:items-center">
             <div className="space-y-4 lg:col-span-5">
@@ -1203,7 +1203,7 @@ export default function LandingPage() {
                 <MapPin className="h-3.5 w-3.5 text-teal-400" />
                 <span>Geographic Network Deployment</span>
               </span>
-              <h2 className="text-3xl font-black text-white sm:text-4xl">
+              <h2 className="text-2xl font-black text-white sm:text-3xl lg:text-4xl">
                 Frontline Footprint Across Odisha Districts
               </h2>
               <p className="text-sm leading-relaxed text-slate-300">
@@ -1233,7 +1233,7 @@ export default function LandingPage() {
                     status: 'Tele-calling Pilot Center',
                   },
                 ].map((n, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950 p-3">
+                  <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950 p-3">
                     <div>
                       <h4 className="text-xs font-bold text-white">{n.district}</h4>
                       <p className="text-[11px] text-slate-400">{n.node}</p>
@@ -1249,7 +1249,7 @@ export default function LandingPage() {
             {/* Network Infographic Card */}
             <div className="lg:col-span-7">
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-6 sm:p-8 shadow-2xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-4">
                   <div>
                     <span className="text-[11px] font-bold uppercase tracking-wider text-teal-400">
                       Telemetry Node Distribution
@@ -1301,14 +1301,14 @@ export default function LandingPage() {
       {/* ==================================================================== */}
       {/* 9. ETHICAL AI GOVERNANCE & PATIENT SAFETY COMMITMENT                 */}
       {/* ==================================================================== */}
-      <section id="governance" className="py-20 lg:py-28">
+      <section id="governance" className="py-12 sm:py-16 lg:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-950/60 px-3.5 py-1 text-xs font-semibold text-teal-300">
               <ShieldCheck className="h-3.5 w-3.5 text-teal-400" />
               <span>Safety & Clinical Governance</span>
             </span>
-            <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">
+            <h2 className="mt-4 text-2xl font-black text-white sm:text-3xl lg:text-4xl">
               "AI assists information flow. Doctors hold sole clinical authority."
             </h2>
             <p className="mt-3 text-sm sm:text-base text-slate-300 leading-relaxed">
@@ -1364,7 +1364,7 @@ export default function LandingPage() {
       {/* ==================================================================== */}
       {/* 10. FINAL INSTITUTIONAL CALL-TO-ACTION                               */}
       {/* ==================================================================== */}
-      <section className="py-16 text-center">
+      <section className="py-12 text-center sm:py-16">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-3xl border border-teal-500/30 bg-gradient-to-b from-teal-950/60 via-slate-900 to-slate-950 p-8 sm:p-14 shadow-2xl">
             <div className="pointer-events-none absolute -top-24 left-1/2 -z-10 h-64 w-96 -translate-x-1/2 rounded-full bg-teal-500/20 blur-3xl" />
@@ -1374,7 +1374,7 @@ export default function LandingPage() {
               <span>Public Health Innovation Ready</span>
             </span>
 
-            <h2 className="mt-5 text-3xl font-black text-white sm:text-4xl lg:text-5xl">
+            <h2 className="mt-5 text-2xl font-black text-white sm:text-4xl lg:text-5xl">
               Experience the Future of Frontline Healthcare
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm sm:text-base text-slate-300 leading-relaxed">
@@ -1402,7 +1402,7 @@ export default function LandingPage() {
       {/* ==================================================================== */}
       {/* 11. COMPREHENSIVE INSTITUTIONAL FOOTER                              */}
       {/* ==================================================================== */}
-      <footer className="border-t border-slate-800/80 bg-slate-950 pt-16 pb-12 text-slate-400">
+      <footer className="border-t border-slate-800/80 bg-slate-950 pt-12 pb-10 text-slate-400 sm:pt-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
             {/* Col 1: Identity & Crest */}
