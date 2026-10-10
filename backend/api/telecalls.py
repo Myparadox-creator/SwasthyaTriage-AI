@@ -10,6 +10,7 @@ Follows SwasthyaTriage AI principles:
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
@@ -29,7 +30,6 @@ from schemas.telephony import (
     TeleCallTurnResponse,
     TranscriptOut,
 )
-from services.email.service import send_sonam_call_request_email
 from services.telephony.service import get_telephony_provider
 
 router = APIRouter(prefix="/api/telecalls", tags=["telephony"])
@@ -234,23 +234,8 @@ def complete_telecall(
 ):
     call, case = _telecall_or_403(db, user, call_id)
     if call.status == CallStatus.COMPLETED:
-    patient = db.get(Patient, case.patient_id)
-
-    try:
-        send_sonam_call_request_email(
-            db,
-            requester_name=user.full_name,
-            requester_email=user.email,
-            phone=call.phone_number,
-            language=case.language.value if case.language else None,
-            purpose=call.reason,
-            case_number=case.case_number,
-            source="Staff console (Tele-consultations & Calls)",
-        )
-    except Exception:  # noqa: BLE001 - never block the tele-call on email failure
-        logger.exception("Admin Sonam-request email failed for call %s", call.public_id)
-
-    return _to_out(call, case, patient)
+        patient = db.get(Patient, case.patient_id)
+        return _to_out(call, case, patient)
 
     provider = get_telephony_provider(call.provider)
     provider.complete_call(db=db, call=call, actor=user)
