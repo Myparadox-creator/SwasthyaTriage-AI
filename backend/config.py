@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_phone_number: str = ""
 
+    # Patient callbacks + telephony webhooks
+    # HMAC secret used to verify provider call-status webhooks. Empty => endpoint disabled.
+    telephony_webhook_secret: str = ""
+    # Supplementary contact Sonam surfaces on red-flag emergencies. National 112/108
+    # guidance is always given; this number is never dialed automatically.
+    emergency_escalation_contact: str = "6370659934"
+
     # Transactional Email System
     email_provider: str = "gmail"  # gmail | resend
     app_base_url: str = "http://localhost:5173"
@@ -89,6 +96,29 @@ class Settings(BaseSettings):
     @property
     def gemini_enabled(self) -> bool:
         return bool(self.gemini_api_key)
+
+    @property
+    def telephony_live(self) -> bool:
+        """True only when a real outbound telephony provider is fully configured.
+
+        The mock provider never places real calls. VideoSDK here only provisions
+        meeting rooms (not a PSTN dialer), so it counts as "live" only when its
+        credentials are actually present.
+        """
+        provider = (self.telephony_provider or "mock").lower()
+        if provider == "mock":
+            return False
+        if provider == "videosdk":
+            return bool(
+                self.videosdk_auth_token
+                or (self.videosdk_api_key and self.videosdk_secret_key)
+            )
+        return False
+
+    @property
+    def callback_mode(self) -> str:
+        """Honest mode string surfaced to patients: mock | live."""
+        return "live" if self.telephony_live else "mock"
 
 
 @lru_cache

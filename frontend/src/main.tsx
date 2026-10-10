@@ -4,6 +4,10 @@ import { createRoot } from 'react-dom/client'
 import './i18n'
 import './index.css'
 import App from './App.tsx'
+import { ensureSnapServeWidgetLoaded } from './lib/snapserve'
+
+// Initialize SnapServe widget
+ensureSnapServeWidgetLoaded()
 
 const PUBLISHABLE_KEY =
   import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ||

@@ -9,10 +9,12 @@ import {
   MapPin,
   MessageSquareText,
   Mic,
+  PhoneCall,
   PlusCircle,
   ShieldCheck,
   Upload,
 } from 'lucide-react'
+import SonamFloatingAssistant from '../../../components/voice/SonamFloatingAssistant'
 import { useAuthStore } from '../../../stores/auth'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../../lib/api'
@@ -97,30 +99,62 @@ export default function PatientDashboard() {
           Select your preferred method. All responses are summarized for authorized healthcare review.
         </p>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Card 1: Talk to AI (Voice) */}
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Card 1: Talk to Sonam (Website Voice Chat) */}
           <Link
             to="/app/patient/voice"
-            className="group relative flex flex-col justify-between rounded-2xl border-2 border-teal-200 bg-gradient-to-b from-teal-50/60 to-white p-4 transition hover:border-teal-500 hover:shadow-lg hover:shadow-teal-100 sm:p-5"
+            className="group relative flex flex-col justify-between rounded-2xl border-2 border-teal-300 bg-gradient-to-b from-teal-50 via-teal-50/40 to-white p-4 transition hover:border-teal-600 hover:shadow-lg hover:shadow-teal-100 sm:p-5"
           >
             <div>
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-md shadow-teal-600/30 group-hover:scale-105 transition-transform">
                 <Mic className="h-6 w-6" />
               </span>
-              <h3 className="mt-4 text-base font-bold text-slate-900 group-hover:text-teal-700">
-                🎙️ Talk to AI
-              </h3>
+              <div className="mt-4 flex items-center gap-1.5">
+                <h3 className="text-base font-bold text-slate-900 group-hover:text-teal-700">
+                  🎙️ Talk to Sonam
+                </h3>
+                <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-800">
+                  Live Voice
+                </span>
+              </div>
               <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
-                Speak directly in Hindi, Odia, or English. AI listens, clarifies symptoms, and formats a triage note.
+                Speak directly in Hindi, Odia, or English. Sonam listens, clarifies symptoms, and sends notes straight to the doctor.
               </p>
             </div>
             <div className="mt-5 flex items-center gap-1.5 text-xs font-semibold text-teal-700">
-              <span>Start Voice Session</span>
+              <span>Start Voice Intake</span>
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
             </div>
           </Link>
 
-          {/* Card 2: Chat with AI */}
+          {/* Card 2: Get a Phone Call (Outbound Callback) */}
+          <Link
+            to="/app/patient/callback"
+            className="group relative flex flex-col justify-between rounded-2xl border-2 border-blue-200 bg-gradient-to-b from-blue-50/60 to-white p-4 transition hover:border-blue-500 hover:shadow-lg hover:shadow-blue-100 sm:p-5"
+          >
+            <div>
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-600/30 group-hover:scale-105 transition-transform">
+                <PhoneCall className="h-6 w-6" />
+              </span>
+              <div className="mt-4 flex items-center gap-1.5">
+                <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-700">
+                  📞 Phone Callback
+                </h3>
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+                  Tele-triage
+                </span>
+              </div>
+              <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                Enter your mobile number to get a telephone call from Sonam. She records your answers for doctor review.
+              </p>
+            </div>
+            <div className="mt-5 flex items-center gap-1.5 text-xs font-semibold text-blue-700">
+              <span>Request Phone Call</span>
+              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+            </div>
+          </Link>
+
+          {/* Card 3: Chat with AI */}
           <Link
             to="/app/patient/new"
             className="group relative flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-400 hover:shadow-md sm:p-5"
@@ -142,7 +176,7 @@ export default function PatientDashboard() {
             </div>
           </Link>
 
-          {/* Card 3: Upload Report */}
+          {/* Card 4: Upload Report */}
           <Link
             to="/app/patient/uploads"
             className="group relative flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-400 hover:shadow-md sm:p-5"
@@ -280,6 +314,9 @@ export default function PatientDashboard() {
           </div>
         )}
       </div>
+
+      {/* Floating Sonam Voice Assistant Drawer */}
+      <SonamFloatingAssistant />
     </div>
   )
 }
