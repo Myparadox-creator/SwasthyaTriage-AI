@@ -43,19 +43,16 @@ export default function PatientDashboard() {
 
   const { i18n } = useTranslation()
   const [error, setError] = useState<string | null>(null)
-  const [greeting, setGreeting] = useState(() => indianGreeting(new Date(), i18n?.language))
+  const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
-    // Keep greeting fresh on mount and when language changes
-    setGreeting(indianGreeting(new Date(), i18n?.language))
-
-    // Re-check every 30 seconds so morning/afternoon/evening transitions happen automatically
-    const timer = setInterval(() => {
-      setGreeting(indianGreeting(new Date(), i18n?.language))
-    }, 30000)
-
+    // Keep clock and greeting fresh on mount and when language changes
+    setNow(new Date())
+    const timer = setInterval(() => setNow(new Date()), 30000)
     return () => clearInterval(timer)
   }, [i18n?.language])
+
+  const greeting = indianGreeting(now, i18n?.language)
 
   useEffect(() => {
     api<CaseListResponse>('/api/cases', { params: { page_size: 15 } })
