@@ -159,6 +159,13 @@ def _match_symptoms(message: str) -> list[str]:
             if alias and alias.lower() in text:
                 found.append(canonical)
                 break
+    # Flexible multi-word patterns for conversational Hindi/Odia/English
+    if re.search(r"\b(?:seene|chhati)\s+(?:me|mein|re)\b.*?\bdard\b", text) or re.search(r"\bchest\s+(?:pain|tightness|pressure|discomfort)\b", text):
+        found.append("chest pain")
+    if re.search(r"\bsaans\s+lene\s+(?:me|mein)\b.*?\b(?:takleef|dikkat|pareshani|kashta)\b", text) or re.search(r"\b(?:breathless|shortness\s+of\s+breath|difficulty\s+breathing)\b", text):
+        found.append("breathing difficulty")
+    if re.search(r"\b(?:baayein|left)\s+(?:haath|arm|shoulder)\b", text) and "chest pain" in found:
+        found.append("chest pain")
     # stable, deduped
     return list(dict.fromkeys(found))
 

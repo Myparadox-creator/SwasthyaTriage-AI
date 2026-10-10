@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import re
 import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from fastapi.responses import StreamingResponse
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from api.chat import _can_converse
@@ -104,7 +107,14 @@ def send_voice_turn(
         db.commit()
         raise AppError(str(exc), status_code=422, code="voice_audio_unavailable") from exc
 
-    seq = (max((m.sequence for m in session.messages), default=0)) + 1
+    seq = (
+        db.scalar(
+            select(func.coalesce(func.max(VoiceMessage.sequence), 0)).where(
+                VoiceMessage.session_id == session.id
+            )
+        )
+        or 0
+    ) + 1
     language = case.language.value if case.language else "en"
     db.add(
         VoiceMessage(
@@ -138,7 +148,122 @@ def send_voice_turn(
         added_symptoms=turn.added_symptoms,
         added_measurement=turn.added_measurement,
         provider=session.provider,
+        diagnostics=turn.diagnostics,
     )
+
+
+@router.post("/{case_id}/voice/sessions/{sid}/turns/stream")
+def stream_voice_turn(
+    case_id: int,
+    sid: str,
+    payload: VoiceTurnRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Server-Sent Events streaming endpoint for real-time sentence-by-sentence voice playback."""
+    case = get_case_or_403(db, user, case_id)
+    _can_converse(case)
+    session = _session_or_404(db, case_id, sid)
+
+    if session.status == SessionStatus.COMPLETED:
+        raise AppError(
+            "This voice session has ended", status_code=409, code="voice_session_completed"
+        )
+
+    session.status = SessionStatus.PROCESSING
+    agent = get_voice_agent()
+
+    def event_generator():
+        yield f"data: {json.dumps({'type': 'start', 'status': 'PROCESSING'})}\n\n"
+
+        try:
+            turn = agent.respond(
+                db=db,
+                case=case,
+                user_text=payload.text,
+                audio_b64=payload.audio_b64,
+                audio_mime=payload.audio_mime,
+                actor=user,
+            )
+        except AudioUnsupportedError as exc:
+            session.status = SessionStatus.ERROR
+            session.error_detail = str(exc)
+            db.commit()
+            yield f"data: {json.dumps({'type': 'error', 'error': str(exc)})}\n\n"
+            return
+        except Exception as exc:
+            session.status = SessionStatus.ERROR
+            session.error_detail = str(exc)
+            db.commit()
+            yield f"data: {json.dumps({'type': 'error', 'error': str(exc)})}\n\n"
+            return
+
+        # Pipelined sentence streaming for real-time TTS playback
+        raw_sentences = [
+            s.strip() for s in re.split(r"(?<=[.!?।|])\s+", turn.text) if s.strip()
+        ]
+        sentences = raw_sentences if raw_sentences else [turn.text]
+
+        for idx, sentence_text in enumerate(sentences):
+            chunk = {
+                "type": "sentence",
+                "text": sentence_text,
+                "index": idx,
+                "total_sentences": len(sentences),
+                "is_first": idx == 0,
+            }
+            yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+
+        # Persist conversation turn to database
+        seq = (
+            db.scalar(
+                select(func.coalesce(func.max(VoiceMessage.sequence), 0)).where(
+                    VoiceMessage.session_id == session.id
+                )
+            )
+            or 0
+        ) + 1
+        language = case.language.value if case.language else "en"
+        db.add(
+            VoiceMessage(
+                session_id=session.id,
+                sequence=seq,
+                role=MessageRole.PATIENT,
+                content=payload.text or turn.user_transcript or "Audio turn",
+                language=language,
+                had_audio=bool(payload.audio_b64),
+            )
+        )
+        db.add(
+            VoiceMessage(
+                session_id=session.id,
+                sequence=seq + 1,
+                role=MessageRole.AI,
+                content=turn.text,
+                language=language,
+                had_audio=False,
+            )
+        )
+        session.status = SessionStatus.SPEAKING
+        session.error_detail = None
+        db.commit()
+
+        # Final completion event
+        completion = {
+            "type": "complete",
+            "reply": turn.text,
+            "status": session.status.value,
+            "progress": turn.progress,
+            "can_submit": turn.can_submit,
+            "added_symptoms": turn.added_symptoms,
+            "added_measurement": turn.added_measurement,
+            "provider": session.provider,
+            "is_emergency": turn.is_emergency,
+            "diagnostics": turn.diagnostics,
+        }
+        yield f"data: {json.dumps(completion, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.get("/{case_id}/voice/sessions/{sid}", response_model=VoiceSessionOut)

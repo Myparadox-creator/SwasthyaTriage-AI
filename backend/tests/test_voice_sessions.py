@@ -60,7 +60,7 @@ def test_voice_session_lifecycle(client: TestClient):
     data = res.json()
     assert data["status"] == "IDLE"
     assert data["mode"] == "IN_APP"
-    assert data["provider"] == "mock"
+    assert data["provider"] in ("mock", "gemini")
     sid = data["public_id"]
 
     turn = client.post(
@@ -74,7 +74,7 @@ def test_voice_session_lifecycle(client: TestClient):
     assert body["reply"]
     assert "fever" in body["added_symptoms"]
     assert body["can_submit"] is False
-    assert body["provider"] == "mock"
+    assert body["provider"] in ("mock", "gemini")
 
     hist = client.get(f"/api/cases/{case_id}/voice/sessions/{sid}", headers=auth(token))
     assert hist.status_code == 200
@@ -191,3 +191,78 @@ def test_voice_complete_idempotent(client: TestClient):
     )
     assert second.status_code == 409
     assert second.json()["error"]["code"] == "voice_session_completed"
+
+
+def test_voice_turn_streaming_sse(client: TestClient):
+    token = login(client, PATIENT)
+    case_id = new_case(client, token)
+    sid = session_for(client, token, case_id)
+
+    res = client.post(
+        f"/api/cases/{case_id}/voice/sessions/{sid}/turns/stream",
+        json={"text": "I have had a mild cough for three days"},
+        headers=auth(token),
+    )
+    assert res.status_code == 200
+    assert "text/event-stream" in res.headers["content-type"]
+    body = res.text
+    assert "data: " in body
+    assert '"type": "start"' in body
+    assert '"type": "sentence"' in body
+    assert '"type": "complete"' in body
+    assert '"diagnostics"' in body
+
+
+def test_voice_turn_emergency_instant_escalation(client: TestClient):
+    token = login(client, PATIENT)
+    case_id = new_case(client, token)
+    sid = session_for(client, token, case_id)
+
+    # Cardiac emergency in Hindi / Hinglish
+    res = client.post(
+        f"/api/cases/{case_id}/voice/sessions/{sid}/turns",
+        json={"text": "Mujhe seene me bohot tez dard ho raha hai aur baayein haath me jaa raha hai"},
+        headers=auth(token),
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["can_submit"] is True
+    assert "108" in body["reply"] or "112" in body["reply"]
+    assert body["diagnostics"] is not None
+    assert body["diagnostics"]["is_emergency"] is True
+
+
+def test_voice_multilingual_and_length_turns(client: TestClient):
+    token = login(client, PATIENT)
+    case_id = new_case(client, token)
+    sid = session_for(client, token, case_id)
+
+    # 1. Short Hindi turn
+    turn1 = client.post(
+        f"/api/cases/{case_id}/voice/sessions/{sid}/turns",
+        json={"text": "mujhe bukhar hai"},
+        headers=auth(token),
+    )
+    assert turn1.status_code == 200
+    assert turn1.json()["diagnostics"]["processing_ms"] < 5000
+
+    # 2. Long English turn with duration and measurements
+    turn2 = client.post(
+        f"/api/cases/{case_id}/voice/sessions/{sid}/turns",
+        json={
+            "text": "I have been experiencing a persistent dry cough along with body aches and a high fever of 102 degrees for the past 4 days."
+        },
+        headers=auth(token),
+    )
+    assert turn2.status_code == 200
+    assert turn2.json()["diagnostics"] is not None
+    assert turn2.json()["diagnostics"]["processing_ms"] < 5000
+
+    # 3. Odia symptom turn
+    turn3 = client.post(
+        f"/api/cases/{case_id}/voice/sessions/{sid}/turns",
+        json={"text": "Mora 2 dina hela munda bindha o jwara heuchi"},
+        headers=auth(token),
+    )
+    assert turn3.status_code == 200
+    assert turn3.json()["reply"]

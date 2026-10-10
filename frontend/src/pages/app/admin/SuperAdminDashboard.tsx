@@ -37,7 +37,10 @@ import {
 import { api } from '../../../lib/api'
 import { useAuthStore } from '../../../stores/auth'
 import type {
+  AiEvaluationReport,
   AuditLogListResponse,
+  EvaluationHistoryResponse,
+  EvaluationTrendResponse,
   FacilityAnalyticsOut,
   FacilityOut,
   StaffUserOut,
@@ -73,7 +76,7 @@ interface EmailLogItem {
   template_name: string
   status: string
   subject: string
-  brevo_message_id?: string
+  provider_message_id?: string
   error_message?: string
   retry_count: number
   created_at: string
@@ -103,7 +106,7 @@ interface EmailStatusState {
 
 const TABS = [
   { id: 'health', label: 'System Health & Overview', icon: Server },
-  { id: 'email', label: 'Brevo Email System', icon: Mail },
+  { id: 'email', label: 'Email System', icon: Mail },
   { id: 'facilities', label: 'Facilities Management', icon: Building },
   { id: 'users', label: 'Platform Users', icon: Users },
   { id: 'ai', label: 'AI Configuration', icon: Sparkles },
@@ -125,6 +128,10 @@ export default function SuperAdminDashboard() {
   const [analytics, setAnalytics] = useState<FacilityAnalyticsOut | null>(null)
   const [audits, setAudits] = useState<AuditLogListResponse | null>(null)
   const [emailStatus, setEmailStatus] = useState<EmailStatusState | null>(null)
+  const [aiReport, setAiReport] = useState<AiEvaluationReport | null>(null)
+  const [aiHistory, setAiHistory] = useState<EvaluationHistoryResponse | null>(null)
+  const [aiTrend, setAiTrend] = useState<EvaluationTrendResponse | null>(null)
+  const [runningBenchmark, setRunningBenchmark] = useState(false)
   const [loading, setLoading] = useState(true)
 
   // Test Email state
@@ -153,8 +160,11 @@ export default function SuperAdminDashboard() {
       api<FacilityAnalyticsOut>('/api/admin/analytics').catch(() => null),
       api<AuditLogListResponse>('/api/audit-logs', { params: { page_size: 30 } }).catch(() => null),
       api<EmailStatusState>('/api/admin/email/status').catch(() => null),
+      api<AiEvaluationReport>('/api/admin/ai-evaluation/report').catch(() => null),
+      api<EvaluationHistoryResponse>('/api/admin/ai-evaluation/history', { params: { limit: 20 } }).catch(() => null),
+      api<EvaluationTrendResponse>('/api/admin/ai-evaluation/trend', { params: { limit: 20 } }).catch(() => null),
     ])
-      .then(([hRes, fRes, uRes, rRes, anRes, auRes, eRes]) => {
+      .then(([hRes, fRes, uRes, rRes, anRes, auRes, eRes, aiRes, hiRes, trRes]) => {
         setHealth(hRes)
         setFacilities(fRes)
         setUsers(uRes)
@@ -162,8 +172,29 @@ export default function SuperAdminDashboard() {
         setAnalytics(anRes)
         setAudits(auRes)
         setEmailStatus(eRes)
+        setAiReport(aiRes)
+        setAiHistory(hiRes)
+        setAiTrend(trRes)
       })
       .finally(() => setLoading(false))
+  }
+
+  const handleRunBenchmark = async () => {
+    setRunningBenchmark(true)
+    try {
+      const res = await api<AiEvaluationReport>('/api/admin/ai-evaluation/run', { method: 'POST' })
+      setAiReport(res)
+      const [hiRes, trRes] = await Promise.all([
+        api<EvaluationHistoryResponse>('/api/admin/ai-evaluation/history', { params: { limit: 20 } }).catch(() => null),
+        api<EvaluationTrendResponse>('/api/admin/ai-evaluation/trend', { params: { limit: 20 } }).catch(() => null),
+      ])
+      setAiHistory(hiRes)
+      setAiTrend(trRes)
+    } catch {
+      //
+    } finally {
+      setRunningBenchmark(false)
+    }
   }
 
   useEffect(() => {
@@ -221,7 +252,7 @@ export default function SuperAdminDashboard() {
                 Odisha Tele-Triage Platform Command Center
               </h1>
               <p className="mt-1 text-xs sm:text-sm text-purple-200/80">
-                Super Administrator: <strong className="text-white">{user.full_name}</strong> · Multi-Tenant Odisha Health Network · AI Safety Rules & Brevo Infrastructure
+                Super Administrator: <strong className="text-white">{user.full_name}</strong> · Multi-Tenant Odisha Health Network · AI Safety Rules & Email Infrastructure
               </p>
             </div>
           </div>
@@ -324,14 +355,14 @@ export default function SuperAdminDashboard() {
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase">Brevo Email</span>
+                <span className="text-xs font-bold text-slate-400 uppercase">Email Delivery</span>
                 <Mail className="h-4 w-4 text-sky-400" />
               </div>
               <p className="mt-3 text-2xl font-black text-white">
                 {emailStatus?.configured ? 'Active' : 'Offline'}
               </p>
               <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-sky-400">
-                Mode: {emailStatus?.delivery_mode || 'live'} · Verified Sender
+                Mode: {emailStatus?.delivery_mode || 'live'} · {emailStatus?.provider || 'Email'}
               </span>
             </div>
           </div>
@@ -339,13 +370,13 @@ export default function SuperAdminDashboard() {
           <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 text-white space-y-3">
             <h3 className="text-sm font-bold text-teal-300">Cluster Architecture & High Availability</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              SwasthyaTriage AI leverages a decoupled microservices architecture: FastAPI ASGI engine running asynchronously with Pydantic validation, Neon PostgreSQL providing instant branch replication and automated backup, Brevo transactional email engine for secure clinical notifications, and stateless Gemini AI service wrappers guaranteeing deterministic failover.
+              SwasthyaTriage AI leverages a decoupled microservices architecture: FastAPI ASGI engine running asynchronously with Pydantic validation, Neon PostgreSQL providing instant branch replication and automated backup, a configurable transactional email engine (Gmail SMTP or Resend) for secure clinical notifications, and stateless Gemini AI service wrappers guaranteeing deterministic failover.
             </p>
           </div>
         </div>
       )}
 
-      {/* TAB: BREVO EMAIL SYSTEM */}
+      {/* TAB: EMAIL SYSTEM */}
       {activeTab === 'email' && (
         <div className="space-y-6">
           {/* Email Provider Status Banner */}
@@ -357,7 +388,7 @@ export default function SuperAdminDashboard() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-white">Brevo Transactional Email System</h2>
+                    <h2 className="text-lg font-bold text-white">{emailStatus?.provider || 'Transactional Email'} System</h2>
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                         emailStatus?.configured
@@ -446,7 +477,7 @@ export default function SuperAdminDashboard() {
                 Send Diagnostic Transactional Email
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Dispatch an authentic transactional email through Brevo API using any system template to verify template rendering and inbox deliverability.
+                Dispatch an authentic transactional email through the configured provider using any system template to verify template rendering and inbox deliverability.
               </p>
             </div>
 
@@ -476,7 +507,7 @@ export default function SuperAdminDashboard() {
                 setSendingTest(true)
                 setTestFeedback(null)
                 try {
-                  const res = await api<{ success: boolean; brevo_message_id?: string; detail?: string }>(
+                  const res = await api<{ success: boolean; provider_message_id?: string; detail?: string }>(
                     '/api/admin/email/test',
                     {
                       method: 'POST',
@@ -488,7 +519,7 @@ export default function SuperAdminDashboard() {
                   )
                   setTestFeedback({
                     success: true,
-                    msg: `Email successfully dispatched! Message ID: ${res.brevo_message_id || 'Accepted by provider'}`,
+                    msg: `Email successfully dispatched! Message ID: ${res.provider_message_id || 'Accepted by provider'}`,
                   })
                   loadData()
                 } catch (err) {
@@ -579,7 +610,7 @@ export default function SuperAdminDashboard() {
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-white space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-white">Recent Brevo Transactional Logs</h3>
+                <h3 className="text-sm font-bold text-white">Recent Transactional Email Logs</h3>
                 <p className="text-xs text-slate-400">Audit trail of all transactional notifications dispatched by backend triggers.</p>
               </div>
               <button
@@ -603,7 +634,7 @@ export default function SuperAdminDashboard() {
                       <th className="p-3">Template</th>
                       <th className="p-3">Subject</th>
                       <th className="p-3">Status</th>
-                      <th className="p-3">Brevo Message ID / Detail</th>
+                      <th className="p-3">Message ID / Detail</th>
                       <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -634,7 +665,7 @@ export default function SuperAdminDashboard() {
                           </span>
                         </td>
                         <td className="p-3 font-mono text-[10px] text-slate-400 max-w-[200px] truncate">
-                          {log.brevo_message_id || log.error_message || '--'}
+                          {log.provider_message_id || log.error_message || '--'}
                         </td>
                         <td className="p-3 text-right">
                           {log.status === 'failed' && (
@@ -781,55 +812,292 @@ export default function SuperAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 4: AI CONFIGURATION */}
+      {/* TAB 4: AI CONFIGURATION & EVALUATION BENCHMARK DASHBOARD */}
       {activeTab === 'ai' && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-white space-y-6 max-w-2xl">
-          <div>
-            <h2 className="text-base font-bold text-white">Google Gemini Model Parameters</h2>
-            <p className="text-xs text-slate-400">Settings governing clinical extraction and live speech.</p>
+        <div className="space-y-6">
+          {/* Top Bar: Benchmarking Action */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-white">
+            <div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-teal-400" />
+                <h2 className="text-base font-bold text-white">Multilingual AI Quality & Evaluation Benchmark</h2>
+                <span className="rounded bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 text-[10px] font-mono font-bold">
+                  {aiReport?.overall_metrics?.calibration_status || 'EMPIRICALLY_EVALUATED'}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                Rigorous, reproducible speech transcription (WER/CER), clinical extraction (Precision/Recall/F1), and ECE calibration metrics across Odia, Hindi, and English.
+              </p>
+              {aiReport?.timestamp && (
+                <p className="mt-1 text-[11px] font-mono text-slate-500">
+                  Last benchmark run: {new Date(aiReport.timestamp).toLocaleString()} · {aiReport.total_test_cases} test cases evaluated
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleRunBenchmark}
+              disabled={runningBenchmark}
+              className="flex items-center gap-2 rounded-xl bg-teal-500 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-sm hover:bg-teal-400 disabled:opacity-50 shrink-0"
+            >
+              <RotateCw className={`h-4 w-4 ${runningBenchmark ? 'animate-spin' : ''}`} />
+              {runningBenchmark ? 'Evaluating Live Models...' : 'Run Live Benchmark'}
+            </button>
           </div>
 
-          <div className="space-y-4 text-xs">
-            <div>
-              <label className="font-semibold text-slate-300">Generative Triage Model:</label>
-              <input
-                type="text"
-                disabled
-                value="gemini-2.5-flash"
-                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-teal-400 font-mono font-bold"
-              />
+          {/* Metric Overview Cards */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-white">
+              <span className="text-xs font-bold text-slate-400 uppercase">Word Error Rate (WER)</span>
+              <p className="mt-2 text-2xl font-black text-teal-400 font-mono">
+                {aiReport ? `${(aiReport.overall_metrics.mean_wer * 100).toFixed(1)}%` : '--'}
+              </p>
+              <span className="mt-1 block text-[11px] text-slate-400">
+                Speech recognition accuracy across all 3 languages
+              </span>
             </div>
-            <div>
-              <label className="font-semibold text-slate-300">Live Voice Agent Model:</label>
-              <input
-                type="text"
-                disabled
-                value="gemini-2.5-flash-native-audio-preview-12-2025"
-                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-teal-400 font-mono font-bold"
-              />
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-white">
+              <span className="text-xs font-bold text-slate-400 uppercase">Character Error Rate (CER)</span>
+              <p className="mt-2 text-2xl font-black text-cyan-400 font-mono">
+                {aiReport ? `${(aiReport.overall_metrics.mean_cer * 100).toFixed(1)}%` : '--'}
+              </p>
+              <span className="mt-1 block text-[11px] text-slate-400">
+                Sub-word Levenshtein distance on Odia/Devanagari scripts
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-white">
+              <span className="text-xs font-bold text-slate-400 uppercase">Clinical Entity F1-Score</span>
+              <p className="mt-2 text-2xl font-black text-emerald-400 font-mono">
+                {aiReport ? `${(aiReport.overall_metrics.mean_f1 * 100).toFixed(1)}%` : '--'}
+              </p>
+              <span className="mt-1 block text-[11px] text-slate-400">
+                Harmonic mean of precision ({aiReport ? (aiReport.overall_metrics.mean_precision * 100).toFixed(0) : '--'}%) & recall ({aiReport ? (aiReport.overall_metrics.mean_recall * 100).toFixed(0) : '--'}%)
+              </span>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-white">
+              <span className="text-xs font-bold text-slate-400 uppercase">Expected Calibration (ECE)</span>
+              <p className="mt-2 text-2xl font-black text-amber-400 font-mono">
+                {aiReport ? `${(aiReport.overall_metrics.expected_calibration_error_ece * 100).toFixed(2)}%` : '--'}
+              </p>
+              <span className="mt-1 block text-[11px] text-slate-400">
+                Binned confidence vs empirical accuracy deviation
+              </span>
+            </div>
+          </div>
+
+          {/* Metric Drift Monitoring & Run History (Feature: drift monitoring) */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-white space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <label className="font-semibold text-slate-300">Extraction Temperature:</label>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider text-slate-300">
+                  Metric Drift Monitoring & Run History
+                </h3>
+                <p className="mt-1 text-xs text-slate-400">
+                  Persisted benchmark runs compared over time. Monitoring signals only — not clinical validation.
+                </p>
+              </div>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${
+                  aiTrend?.drift_detected
+                    ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                }`}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                {aiTrend?.drift_detected ? `Drift Detected: ${aiTrend.drift_metrics.join(', ')}` : 'No Drift Detected'}
+              </span>
+            </div>
+
+            {aiTrend && aiTrend.run_count > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-800 bg-slate-950 text-slate-400 font-semibold">
+                    <tr>
+                      <th className="p-3">Metric</th>
+                      <th className="p-3">Latest</th>
+                      <th className="p-3">Previous</th>
+                      <th className="p-3">Delta</th>
+                      <th className="p-3">Limit</th>
+                      <th className="p-3">Trend</th>
+                      <th className="p-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {Object.entries(aiTrend.metrics).map(([metric, m]) => (
+                      <tr key={metric} className="hover:bg-slate-800/50">
+                        <td className="p-3 font-mono text-slate-300">{metric}</td>
+                        <td className="p-3 font-mono text-white">{m.latest.toFixed(4)}</td>
+                        <td className="p-3 font-mono text-slate-400">{m.previous != null ? m.previous.toFixed(4) : '--'}</td>
+                        <td className={`p-3 font-mono ${m.drift_detected ? 'text-red-300' : 'text-slate-400'}`}>
+                          {m.delta != null ? `${m.delta > 0 ? '+' : ''}${m.delta.toFixed(4)}` : '--'}
+                        </td>
+                        <td className="p-3 font-mono text-slate-500">{m.limit} ({m.better})</td>
+                        <td className="p-3 text-slate-300 capitalize">{m.direction}</td>
+                        <td className="p-3">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              m.drift_detected
+                                ? 'bg-red-500/20 text-red-400'
+                                : 'bg-emerald-500/20 text-emerald-400'
+                            }`}
+                          >
+                            {m.threshold_breached ? 'BREACH' : m.drift_detected ? 'DRIFT' : 'OK'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 py-4 text-center">
+                No persisted evaluation runs yet. Run a live benchmark to start tracking drift.
+              </p>
+            )}
+
+            {aiHistory && aiHistory.runs.length > 0 && (
+              <div className="space-y-2 pt-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Recent Runs</h4>
+                <div className="space-y-1.5">
+                  {aiHistory.runs.slice(0, 8).map((run) => (
+                    <div
+                      key={run.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-[11px]"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-teal-400">#{run.id}</span>
+                        <span className="text-slate-300">{new Date(run.created_at).toLocaleString()}</span>
+                        <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
+                          {run.dataset_version} · {run.model_version}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {run.thresholds_breached.length > 0 ? (
+                          <span className="rounded-full bg-red-500/20 px-2 py-0.5 font-bold text-red-300">
+                            {run.thresholds_breached.length} breach
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 font-bold text-emerald-300">
+                            within limits
+                          </span>
+                        )}
+                        <span className="text-slate-500">{run.total_samples} samples</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {aiHistory?.note && <p className="text-[10px] italic text-slate-500">{aiHistory.note}</p>}
+          </div>
+
+          {/* Multilingual Breakdown Table */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-white space-y-4">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider text-slate-300">
+              Language-Wise Quality Breakdown (Odia · Hindi · Indian English)
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-800 bg-slate-950 text-slate-400 font-semibold">
+                  <tr>
+                    <th className="p-3">Language</th>
+                    <th className="p-3">Test Cases</th>
+                    <th className="p-3">Speech WER</th>
+                    <th className="p-3">Speech CER</th>
+                    <th className="p-3">NER Precision</th>
+                    <th className="p-3">NER Recall</th>
+                    <th className="p-3">Clinical F1</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {aiReport && Object.entries(aiReport.language_breakdown).map(([code, lData]) => (
+                    <tr key={code} className="hover:bg-slate-800/50">
+                      <td className="p-3 font-semibold text-white">
+                        {lData.name} <span className="font-mono text-[10px] text-slate-400 uppercase">({code})</span>
+                      </td>
+                      <td className="p-3 font-mono text-slate-300">{lData.sample_count}</td>
+                      <td className="p-3 font-mono text-teal-400">{(lData.mean_wer * 100).toFixed(1)}%</td>
+                      <td className="p-3 font-mono text-cyan-400">{(lData.mean_cer * 100).toFixed(1)}%</td>
+                      <td className="p-3 font-mono text-slate-300">{(lData.entity_precision * 100).toFixed(1)}%</td>
+                      <td className="p-3 font-mono text-slate-300">{(lData.entity_recall * 100).toFixed(1)}%</td>
+                      <td className="p-3 font-mono font-bold text-emerald-400">{(lData.entity_f1 * 100).toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Test Case Scenarios */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-white space-y-4">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider text-slate-300">
+              Validated Benchmark Scenarios (Permitted Synthetic Cohort)
+            </h3>
+            <div className="space-y-2">
+              {aiReport?.cases.map((cs) => (
+                <div key={cs.case_id} className="rounded-xl border border-slate-800 bg-slate-950 p-3.5 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-teal-400">{cs.case_id}</span>
+                      <span className="font-semibold text-white">{cs.scenario}</span>
+                      <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300 uppercase">
+                        {cs.language}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs font-mono shrink-0">
+                    <span className="text-slate-400">WER: <strong className="text-teal-300">{(cs.wer * 100).toFixed(1)}%</strong></span>
+                    <span className="text-slate-400">CER: <strong className="text-cyan-300">{(cs.cer * 100).toFixed(1)}%</strong></span>
+                    <span className="text-slate-400">Entity F1: <strong className="text-emerald-300">{(cs.entity_f1 * 100).toFixed(1)}%</strong></span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${cs.is_emergency ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                      {cs.is_emergency ? 'EMERGENCY' : 'TRIAGE'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Underlying Model Config Box */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-white space-y-4 max-w-2xl">
+            <h3 className="text-sm font-bold text-white">Google Gemini Model Parameters</h3>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-300">Generative Triage Model:</label>
                 <input
                   type="text"
                   disabled
-                  value="0.1 (Strict Deterministic)"
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-slate-300"
+                  value="gemini-2.5-flash / gemini-3-flash-preview"
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2 text-teal-400 font-mono font-bold"
                 />
               </div>
-              <div>
-                <label className="font-semibold text-slate-300">Fallback Strategy:</label>
-                <input
-                  type="text"
-                  disabled
-                  value="Keyword & RegEx Banking"
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-slate-300"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="font-semibold text-slate-300">Extraction Temperature:</label>
+                  <input
+                    type="text"
+                    disabled
+                    value="0.1 (Strict Deterministic)"
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2 text-slate-300"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-300">Fallback Strategy:</label>
+                  <input
+                    type="text"
+                    disabled
+                    value="Keyword & RegEx Banking"
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2 text-slate-300"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="rounded-xl border border-teal-500/30 bg-teal-950/20 p-4 text-xs text-teal-300">
-              ℹ️ Strict Output Enforcement: All LLM responses must strictly serialize into Pydantic models with pre-defined schema validation. Free-form clinical speculation is prohibited.
+              <div className="rounded-xl border border-teal-500/30 bg-teal-950/20 p-3 text-xs text-teal-300">
+                ℹ️ Strict Output Enforcement: All LLM responses serialize into Pydantic models with pre-defined schema validation. Free-form clinical speculation is prohibited.
+              </div>
             </div>
           </div>
         </div>

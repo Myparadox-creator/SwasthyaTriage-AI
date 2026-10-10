@@ -10,18 +10,18 @@ Includes:
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from fastapi import APIRouter, Depends, Query
+
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from auth.dependencies import get_current_user, require_roles
+from auth.dependencies import require_roles
 from auth.password import hash_password
-from config import settings
 from database.session import get_db
 from middleware.errors import AppError, ForbiddenError, NotFoundError
-from models import Case, Facility, FollowUp, Patient, Referral, User, VoiceSession
-from models.enums import CaseSource, CaseStatus, Priority, Role
+from models import Case, Facility, FollowUp, Referral, User
+from models.enums import CaseStatus, Priority, Role
 from services.audit import AuditAction, record_audit
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -395,4 +395,43 @@ def get_analytics(
         source_distribution=source_distribution,
         language_distribution=language_distribution,
         daily_trend=daily_trend,
+    )
+
+
+class SopSourceOut(BaseModel):
+    doc_id: str
+    doc_title: str
+    section_id: str
+    section_title: str
+    issuing_authority: str | None = None
+    source_url: str | None = None
+    publication_date: str | None = None
+    effective_date: str | None = None
+    review_date: str | None = None
+    version: str
+    review_status: str
+    document_hash: str | None = None
+    verified: bool
+    governance_note: str | None = None
+
+
+class SopGovernanceOut(BaseModel):
+    summary: dict
+    documents: list[SopSourceOut]
+
+
+@router.get("/sop-sources", response_model=SopGovernanceOut)
+def list_sop_governance(
+    current_user: User = Depends(require_roles(*ADMIN_ROLES)),
+) -> SopGovernanceOut:
+    """Returns the SOP governance registry: source, version, and verification status.
+
+    Unverified drafts are surfaced explicitly so no unverified guidance can be
+    mistaken for approved policy. Role: Facility Admin & Super Admin.
+    """
+    from services.rag.sop_repository import governance_summary, list_sop_sources
+
+    return SopGovernanceOut(
+        summary=governance_summary(),
+        documents=[SopSourceOut(**doc) for doc in list_sop_sources()],
     )

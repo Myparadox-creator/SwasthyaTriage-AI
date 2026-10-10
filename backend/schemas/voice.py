@@ -61,3 +61,4 @@ class VoiceTurnResponse(BaseModel):
     added_symptoms: list[str]
     added_measurement: bool
     provider: str
+    diagnostics: dict | None = None

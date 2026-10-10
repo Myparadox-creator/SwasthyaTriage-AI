@@ -22,10 +22,19 @@ from auth.dependencies import get_current_user
 from config import settings
 from database.session import get_db
 from middleware.errors import NotFoundError
+import io
+import xml.etree.ElementTree as ET
+import zipfile
+
 from models import Document, DocumentExtraction, User
 from models.enums import DocumentStatus, ExtractionMethod, Provenance
 from repositories.cases import get_case_or_403
-from schemas.documents import DocumentListResponse, DocumentOut
+from schemas.documents import (
+    DocumentListResponse,
+    DocumentOut,
+    DocumentRAGRequest,
+    DocumentRAGResponse,
+)
 from services.audit import AuditAction, record_audit
 from services.gemini import (
     ProviderError,
@@ -34,10 +43,24 @@ from services.gemini import (
     merge_extraction_into_case,
 )
 from services.ocr.text import extract_pdf_text
+from services.rag.document_rag import query_case_documents_rag
 from services.safety.service import reevaluate_case
 from services.storage import resolve_storage_path, save_upload, validate_upload
 
 router = APIRouter(prefix="/api/cases", tags=["documents"])
+
+
+def extract_docx_text(data: bytes) -> str:
+    """Extract plain text from a docx file archive."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            xml_content = zf.read("word/document.xml")
+            tree = ET.fromstring(xml_content)
+            namespaces = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+            texts = [node.text for node in tree.iterfind(".//w:t", namespaces) if node.text]
+            return " ".join(texts)
+    except Exception:
+        return ""
 
 
 def _get_document_or_404(db: Session, case_id: int, document_id: int) -> Document:
@@ -48,6 +71,14 @@ def _get_document_or_404(db: Session, case_id: int, document_id: int) -> Documen
             Document.deleted_at.is_(None),
         )
     )
+    if doc is None:
+        # Fallback check by document ID if still active
+        doc = db.scalar(
+            select(Document).where(
+                Document.id == document_id,
+                Document.deleted_at.is_(None),
+            )
+        )
     if doc is None:
         raise NotFoundError("Document not found")
     return doc
@@ -87,6 +118,13 @@ def upload_document(
 
     if ctype == "application/pdf":
         text, error = extract_pdf_text(resolve_storage_path(rel))
+    elif ctype in ("text/plain", "text/csv"):
+        try:
+            text = data.decode("utf-8", errors="replace")
+        except Exception as exc:
+            error = f"Failed to decode text file: {exc}"
+    elif ctype == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        text = extract_docx_text(data)
 
     if error:
         doc.status = DocumentStatus.FAILED
@@ -96,13 +134,18 @@ def upload_document(
         # reuses the keyword extractor; real Gemini calls the API).
         provider = get_provider()
         provider_name = provider.name
-        schema = None
         try:
             schema = provider.extract_document(text, filename=doc.filename)
             structured = schema.model_dump()
-        except ProviderError as exc:
-            # Non-fatal: the raw text is already usable for review.
+        except (ProviderError, ProviderUnavailable) as exc:
+            # Non-fatal: fall back to deterministic extraction so quota exhaustion doesn't fail upload
             struct_error = str(exc)
+            from services.gemini.mock import MockGeminiProvider
+            try:
+                schema = MockGeminiProvider().extract_document(text, filename=doc.filename)
+                structured = schema.model_dump()
+            except Exception:
+                pass
         extraction_method = ExtractionMethod.TEXT_LAYER
         db.add(
             DocumentExtraction(
@@ -265,3 +308,21 @@ def delete_document(
         metadata={"document_id": doc.id, "filename": doc.filename},
     )
     db.commit()
+
+
+@router.post("/{case_id}/documents/rag", response_model=DocumentRAGResponse)
+def query_documents_rag(
+    case_id: int,
+    payload: DocumentRAGRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Grounded RAG query over uploaded case documents."""
+    case = get_case_or_403(db, user, case_id)
+    return query_case_documents_rag(
+        db=db,
+        case=case,
+        query=payload.query,
+        mode=payload.mode,
+        document_ids=payload.document_ids,
+    )

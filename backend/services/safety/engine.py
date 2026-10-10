@@ -10,6 +10,7 @@ Independently testable: no database, no network.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 
 from models import SafetyRule
 from models.enums import Priority
@@ -28,6 +29,7 @@ class RuleSpec:
     target_priority: Priority
     display_message: str
     field_condition: dict | None = None
+    rule_id: int | None = None
 
     @classmethod
     def from_rule(cls, rule: SafetyRule) -> RuleSpec:
@@ -38,6 +40,7 @@ class RuleSpec:
             target_priority=rule.target_priority,
             display_message=rule.display_message,
             field_condition=rule.field_condition,
+            rule_id=getattr(rule, "id", None),
         )
 
 
@@ -48,6 +51,7 @@ class MatchedSignal:
     message: str
     priority: Priority
     evidence: dict = field(default_factory=dict)
+    rule_id: int | None = None
 
 
 @dataclass
@@ -155,6 +159,22 @@ def evaluate_safety(rules: list[RuleSpec], extraction: dict) -> SafetyEvaluation
                 evidence = {"matched_pattern": pattern}
                 break
 
+        # Clinical regex matching for complex conversational statements
+        if evidence is None and rule.code == "CHEST_PAIN":
+            if (
+                re.search(r"\b(?:seene|chhati)\s+(?:me|mein|re)\b.*?\bdard\b", haystack)
+                or re.search(r"\bchest\s+(?:pain|tightness|pressure)\b", haystack)
+                or "chest pain" in haystack
+            ):
+                evidence = {"matched_pattern": "chest pain / seene me dard"}
+        elif evidence is None and rule.code == "BREATHING_DIFFICULTY":
+            if (
+                re.search(r"\bsaans\s+lene\s+(?:me|mein)\b.*?\b(?:takleef|dikkat|pareshani|kashta)\b", haystack)
+                or re.search(r"\b(?:breathless|shortness\s+of\s+breath)\b", haystack)
+                or "breathing difficulty" in haystack
+            ):
+                evidence = {"matched_pattern": "breathing difficulty / saans lene me takleef"}
+
         if evidence is None and rule.field_condition:
             holds, cond_evidence = _condition_holds(rule.field_condition, extraction, measurements)
             if holds:
@@ -168,6 +188,7 @@ def evaluate_safety(rules: list[RuleSpec], extraction: dict) -> SafetyEvaluation
                     message=rule.display_message,
                     priority=rule.target_priority,
                     evidence=evidence,
+                    rule_id=rule.rule_id,
                 )
             )
 

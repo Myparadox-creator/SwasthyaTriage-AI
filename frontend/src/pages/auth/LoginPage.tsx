@@ -125,6 +125,12 @@ export default function LoginPage() {
   const from = (location.state as { from?: string } | null)?.from
   const activeRoleConfig = ROLES.find((r) => r.id === selectedRole) || ROLES[0]
 
+  const isRoleError =
+    !!error &&
+    (error.toLowerCase().includes('registered as') ||
+      error.toLowerCase().includes('access denied') ||
+      error.toLowerCase().includes('role_mismatch'))
+
   const handleRoleChange = (role: RoleOption) => {
     setSelectedRole(role.id)
     setEmail(role.demoEmail)
@@ -364,11 +370,13 @@ export default function LoginPage() {
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
               <div className="flex-1">
-                <span className="font-bold text-rose-950 block">Role Access Blocked</span>
+                <span className="font-bold text-rose-950 block">
+                  {isRoleError ? 'Role Access Blocked' : 'Sign-in Error'}
+                </span>
                 <span className="leading-relaxed">{error}</span>
               </div>
             </div>
-            {error.toLowerCase().includes('registered as') && (
+            {isRoleError && (
               <p className="text-[11px] font-semibold text-rose-700 bg-rose-100/70 p-2 rounded-lg">
                 🔒 Security Policy: One email cannot access multiple roles. Please select your registered role tab or use a unique email address for this role.
               </p>

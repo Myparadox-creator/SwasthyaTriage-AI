@@ -1,6 +1,24 @@
-"""Brevo Transactional Email System for SwasthyaFlow AI."""
+"""Transactional email system for SwasthyaFlow AI.
 
-from services.email.brevo import BrevoAuthError, BrevoClient, BrevoDeliveryError, BrevoError
+Supports two interchangeable providers:
+- Gmail SMTP (``gmail``) — sends to any recipient, no verified domain required.
+- Resend API (``resend``) — requires a verified sender domain for real recipients.
+"""
+
+from services.email.base import EmailAuthError, EmailDeliveryError, EmailError
+from services.email.client import email_provider_info, get_email_client
+from services.email.gmail import (
+    GmailAuthError,
+    GmailDeliveryError,
+    GmailError,
+    GmailSmtpClient,
+)
+from services.email.resend import (
+    ResendAuthError,
+    ResendClient,
+    ResendDeliveryError,
+    ResendError,
+)
 from services.email.service import (
     create_and_send_password_reset_email,
     create_and_send_verification_email,
@@ -20,10 +38,19 @@ from services.email.service import (
 from services.email.templates import render_email_template
 
 __all__ = [
-    "BrevoClient",
-    "BrevoError",
-    "BrevoAuthError",
-    "BrevoDeliveryError",
+    "EmailError",
+    "EmailAuthError",
+    "EmailDeliveryError",
+    "get_email_client",
+    "email_provider_info",
+    "GmailSmtpClient",
+    "GmailError",
+    "GmailAuthError",
+    "GmailDeliveryError",
+    "ResendClient",
+    "ResendError",
+    "ResendAuthError",
+    "ResendDeliveryError",
     "render_email_template",
     "dispatch_email",
     "create_and_send_verification_email",
