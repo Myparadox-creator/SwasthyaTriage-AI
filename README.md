@@ -66,6 +66,7 @@
   - [Offline Sync Queue for Remote Sub-Centres](#-offline-sync-queue-for-remote-sub-centres)
   - [CDMO Multi-Sheet Excel Reporting Engine](#-cdmo-multi-sheet-excel-reporting-engine)
   - [Strict Single-Role Isolation & Enterprise Security](#-strict-single-role-isolation--enterprise-security)
+  - [Privacy, Data Rights & Compliance Layer](#-privacy-data-rights--compliance-layer)
 - [Repository Structure](#-repository-structure)
 - [Technology Stack Matrix](#-technology-stack-matrix)
 - [Quickstart & Setup Guide](#-quickstart--setup-guide)
@@ -146,6 +147,7 @@ In peripheral public health facilities across India (such as Sub-Centres, PHCs, 
 │ 10. Verified Directory of Jan Aushadhi & 24/7 Hospitals│
 │ 11. Automated AI Evaluation & Quality Drift Harness    │
 │ 12. One-click CDMO Excel handoff analytics             │
+│ 13. PII redaction, data export & right-to-erasure      │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -187,6 +189,11 @@ flowchart TD
         SAFETY_ENGINE["Deterministic Safety Rule Engine (Odisha Health Rules)"]
     end
 
+    subgraph PRIVACY_TIER["Privacy & Data-Rights Layer"]
+        PII_REDACTION["PII Redaction Engine & Log Filter"]
+        DATA_RIGHTS["Export / Erasure / Consent / Retention"]
+    end
+
     subgraph EXTERNAL_TIER["External Services & Communication Gateway"]
         EMAIL_GATEWAY["Transactional Email Engine (Gmail SMTP / Resend / Mock)"]
         VIDEOSDK_API["VideoSDK Realtime Telephony & SIP Gateway"]
@@ -212,6 +219,10 @@ flowchart TD
     ORCHESTRATOR --> EVIDENCE_LEDGER
     ORCHESTRATOR --> SAFETY_ENGINE
     FASTAPI_CORE --> EVAL_HARNESS
+    FASTAPI_CORE --> PII_REDACTION
+    FASTAPI_CORE --> DATA_RIGHTS
+    PII_REDACTION -->|Redacted Logs| NEON_DB
+    DATA_RIGHTS -->|Export / Erase| NEON_DB
 
     ORCHESTRATOR -->|API Calls| GEMINI_MODELS
     FASTAPI_CORE -->|SMTP / REST API| EMAIL_GATEWAY
@@ -736,6 +747,17 @@ erDiagram
 - **OAuth & Native Parity**: Unified authentication logic across both email/password credentials and Google OAuth via Clerk.
 - **Defense in Depth**: Password hashing via Argon2id, signed short-lived JWT access tokens (15m), secure HTTP-only refresh tokens (7d), and SlowAPI rate limiting.
 
+### 🔐 Privacy, Data Rights & Compliance Layer
+A self-service privacy layer (`backend/services/privacy/`) gives patients direct control over their health data, aligned with India's DPDP Act subject-rights principles (consent, access, erasure, retention):
+- **PII Redaction Engine** (`redaction.py`): Deterministically masks phones, emails, Aadhaar numbers, and other identifiers in free-text fields, structured values, and nested mappings before they are logged, exported to third parties, or rendered in analytics. Recognizes common Indian formats (e.g. `+91`, leading `0`, and separator-tolerant digit groups).
+- **Automatic Log Redaction** (`logging_filter.py`): A process-wide logging filter (`install_log_redaction()`) scrubs PII from every log record — including third-party library logs — so identifiers never reach log files or telemetry.
+- **Right to Access / Data Portability** (`export.py`): `GET /api/privacy/me/export` produces a single, versioned (`EXPORT_FORMAT_VERSION`) machine-readable JSON bundle of a patient's full record — demographics, cases, voice transcripts, documents metadata, consents, referrals, and audit trail — using batched queries (no N+1) so it completes in seconds even for large histories.
+- **Right to Erasure** (`erasure.py`): `POST /api/privacy/me/erasure` anonymizes the patient record in place (name, phone, address, gender, and clinical free-text are redacted) while preserving de-identified aggregates for public-health reporting, and deactivates the associated login. Requires an explicit `confirm=true` and a typed `"ERASE"` confirmation phrase.
+- **Consent Management**: `GET /api/privacy/me/consents` lists a patient's recorded consents and `POST /api/privacy/consents/{id}/revoke` withdraws any single consent, with every action written to the audit trail.
+- **Retention Policy & Purge** (`retention.py`): Configurable retention windows (`email_log_retention_days`, `auth_token_grace_days`, `voice_transcript_retention_days`) drive a super-admin purge (`POST /api/privacy/admin/retention/purge`) that removes expired logs and tokens; `GET /api/privacy/policy` publicly reports the active policy.
+- **Patient Privacy Center UI** (`PrivacyCenterPage.tsx`): A single dashboard at `/app/patient/privacy` where patients download their data, review and withdraw consents, read the plain-language policy, and exercise right-to-erasure — all without contacting support.
+- **Auditable by Design**: Every export, erasure, consent withdrawal, and retention purge is recorded via dedicated audit actions (`DATA_EXPORTED`, `DATA_ERASED`, `CONSENT_REVOKED`, `RETENTION_PURGED`).
+
 ---
 
 ## 📂 Repository Structure
@@ -759,6 +781,7 @@ erDiagram
 │   │   ├── followups.py             # Scheduled post-discharge follow-ups
 │   │   ├── notifications.py         # In-app notification center alerts
 │   │   ├── patients.py              # Patient profile & ABHA identity management
+│   │   ├── privacy.py               # PII export, right-to-erasure, consents & retention
 │   │   ├── referrals.py             # Inter-facility hospital transfer handoffs
 │   │   ├── reviews.py               # Doctor clinical review & triage sign-off
 │   │   ├── safety.py                # Deterministic safety rule management
@@ -820,6 +843,12 @@ erDiagram
 │   │   │   ├── retriever.py         # Semantic similarity vector search
 │   │   │   ├── sop_repository.py    # Odisha NHM clinical protocols with governance
 │   │   │   └── vector_store.py      # Local JSON/vector persistent storage
+│   │   ├── privacy/                 # PII Redaction, Data Rights & Retention Engine
+│   │   │   ├── redaction.py         # Phone/email/Aadhaar PII masking for text & mappings
+│   │   │   ├── logging_filter.py    # Process-wide log PII redaction filter
+│   │   │   ├── export.py            # Versioned right-to-access data export builder
+│   │   │   ├── erasure.py           # Right-to-erasure in-place anonymization
+│   │   │   └── retention.py         # Retention policy evaluation & expired-data purge
 │   │   ├── safety/                  # Deterministic clinical safety rule evaluator
 │   │   ├── storage.py               # Local encrypted file storage manager
 │   │   ├── telephony/               # VideoSDK and Twilio telephony service
@@ -838,6 +867,7 @@ erDiagram
 │   │   ├── test_facilities.py       # Healthcare locator GIS & helpline tests
 │   │   ├── test_longitudinal.py     # Multi-encounter patient history tests
 │   │   ├── test_patient_excel.py    # CDMO multi-sheet Excel generator tests
+│   │   ├── test_privacy_redaction.py # PII redaction & masking rule tests
 │   │   ├── test_production_rag.py   # Production RAG vector store tests
 │   │   ├── test_safety_engine.py    # Deterministic ESI rule & vitals tests
 │   │   ├── test_sop_governance.py   # SOP governance & review status tests
@@ -869,7 +899,7 @@ erDiagram
 │   │   │   ├── LandingPage.tsx             # Interactive landing page with live demo
 │   │   │   ├── SplashPage.tsx              # Mobile pre-app splash screen
 │   │   │   ├── auth/                       # Login, Signup, Reset Password, Email Verify
-│   │   │   ├── app/patient/                # Patient Dashboard, Voice Intake, Rx Upload
+│   │   │   ├── app/patient/                # Dashboard, Voice Intake, Rx Upload, Privacy Center
 │   │   │   ├── app/hcw/                    # HCW Dashboard, Queue, Case Review, EvidenceLedger
 │   │   │   ├── app/admin/                  # Facility Admin & Super Admin Dashboards
 │   │   │   ├── app/communication/          # Multichannel Communication Centre
@@ -1053,6 +1083,9 @@ For testing and demonstration, use the pre-configured credentials generated by `
 | `VIDEOSDK_SECRET_KEY` | `""` | VideoSDK secret key for dynamic token generation |
 | `CORS_ORIGINS` | `http://localhost:5173,...` | Comma-separated list of allowed CORS origins |
 | `MAX_UPLOAD_MB` | `20` | Maximum allowed file upload size (MB) |
+| `EMAIL_LOG_RETENTION_DAYS` | `90` | Days to retain email delivery logs before purge |
+| `AUTH_TOKEN_GRACE_DAYS` | `30` | Grace period (days) to retain expired auth tokens before purge |
+| `VOICE_TRANSCRIPT_RETENTION_DAYS` | `0` | Days to retain voice transcripts (`0` = retain until patient erasure) |
 
 ---
 
@@ -1074,6 +1107,7 @@ pytest tests/test_document_rag.py -v          # 6 clinical reasoning modes tests
 pytest tests/test_evaluation_metrics.py -v    # Accuracy & ESI concordance tests
 pytest tests/test_email_system.py -v          # Multi-provider email tests
 pytest tests/test_safety_engine.py -v         # Deterministic ESI triage tests
+pytest tests/test_privacy_redaction.py -v     # PII redaction & masking rule tests
 ```
 
 **Key Test Suites**:
@@ -1087,6 +1121,7 @@ pytest tests/test_safety_engine.py -v         # Deterministic ESI triage tests
 - `test_safety_engine.py`: Tests deterministic ESI triage logic and vital sign threshold rules.
 - `test_patient_excel.py`: Verifies multi-sheet CDMO Excel generator output and styling.
 - `test_facilities.py`: Tests OpenStreetMap GIS facility queries and helpline lookup.
+- `test_privacy_redaction.py`: Tests deterministic PII masking of phones, emails, and Aadhaar numbers across text, values, and nested mappings.
 
 ### Frontend Verification & Static Analysis
 ```bash
@@ -1115,6 +1150,8 @@ npm run build
    Every user action, clinical note modification, referral dispatch, and security event is recorded in the `audit_logs` table with timestamps, IP addresses, and user identifiers.
 5. **ABDM Alignment**:  
    The data models adhere to Ayushman Bharat Digital Mission (ABDM) standards, supporting Ayushman Bharat Health Account (ABHA) patient identifiers and structured health record exchanges.
+6. **Patient Data Rights & Privacy by Default**:  
+   PII (phones, emails, Aadhaar) is automatically redacted in all logs, and patients hold enforceable rights to **access/portability**, **consent withdrawal**, and **erasure** through a self-service Privacy Center — every action recorded in the audit trail, aligned with India's DPDP Act subject-rights principles.
 
 ---
 
