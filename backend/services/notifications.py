@@ -81,19 +81,20 @@ def notify_users(
 
 
 def staff_user_ids(db: Session, facility_id: int | None, *, exclude_user_id: int | None = None) -> list[int]:
+    """Active staff ids scoped to a single facility.
+
+    Privacy/tenant isolation: notifications are never fanned out beyond the
+    case's own facility, so staff of one organization can never see another
+    organization's patient cases. If no facility is resolvable we return an
+    empty list rather than leaking across facilities.
+    """
+    if facility_id is None:
+        return []
     stmt = select(User.id).where(
         User.is_active.is_(True),
         User.role.in_(STAFF_ROLES),
+        User.facility_id == facility_id,
     )
-    if facility_id is not None:
-        fac_stmt = stmt.where(User.facility_id == facility_id)
-        if exclude_user_id is not None:
-            fac_stmt = fac_stmt.where(User.id != exclude_user_id)
-        uids = list(db.scalars(fac_stmt).all())
-        if uids:
-            return uids
-
-    # Fallback to all active clinical staff so doctor notification is never dropped
     if exclude_user_id is not None:
         stmt = stmt.where(User.id != exclude_user_id)
     return list(db.scalars(stmt).all())

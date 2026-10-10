@@ -56,6 +56,11 @@ export default function PatientVoiceAssessment() {
   const navigate = useNavigate()
   const [lang, setLang] = useState<'en' | 'hi' | 'od'>('hi')
   const [voiceState, setVoiceState] = useState<VoiceState>('IDLE')
+  const voiceStateRef = useRef<VoiceState>('IDLE')
+  const applyVoiceState = (next: VoiceState) => {
+    voiceStateRef.current = next
+    setVoiceState(next)
+  }
   const [caseDetail, setCaseDetail] = useState<CaseDetail | null>(null)
   const [voiceSession, setVoiceSession] = useState<VoiceSessionOut | null>(null)
   const [currentPrompt, setCurrentPrompt] = useState<string>(
@@ -76,29 +81,67 @@ export default function PatientVoiceAssessment() {
   const [showDiagnostics, setShowDiagnostics] = useState<boolean>(true)
   const turnCounterRef = useRef<number>(0)
 
-  // Speech Recognition & VAD Refs
-  const recognitionRef = useRef<any>(null)
-  const silenceTimerRef = useRef<any>(null)
+  // Microphone capture, AudioContext & VAD refs (MediaRecorder + server-side Gemini STT)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const vadIntervalRef = useRef<number | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const recorderMimeRef = useRef<string>('')
+  const hasSpeechRef = useRef(false)
+  const lastVoiceAtRef = useRef(0)
+  const shouldSubmitOnStopRef = useRef(false)
+  const isListeningRef = useRef(false)
+  const manualStopRef = useRef(false)
   const lastTranscriptRef = useRef<string>('')
+
+  // Sentence-queue streaming TTS engine. Sentences are appended as the LLM
+  // streams; each is spoken in order and, once the turn is closed and the queue
+  // drains, the done callback fires (used for auto-submit or reopening the mic).
+  const ttsGenerationRef = useRef(0)
+  const ttsQueueRef = useRef<string[]>([])
+  const ttsActiveRef = useRef(false)
+  const ttsFirstCbRef = useRef<((ts: number) => void) | null>(null)
+  const ttsDoneCbRef = useRef<(() => void) | null>(null)
+  const ttsFirstFiredRef = useRef(false)
+  const ttsClosedRef = useRef(true)
+  const ttsResumeHackRef = useRef<number | null>(null)
+  const pendingAutoSubmitRef = useRef(false)
   const speechEndTimestampRef = useRef<number>(0)
-  const isSpeechSupported =
-    typeof window !== 'undefined' &&
-    ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)
+  const [micLevel, setMicLevel] = useState(0)
 
   // Silence threshold for natural end-of-turn detection (1.3 seconds)
   const SILENCE_THRESHOLD_MS = 1300
+  const SPEECH_RMS_THRESHOLD = 0.02
+
+  const teardownListening = () => {
+    shouldSubmitOnStopRef.current = false
+    if (vadIntervalRef.current) {
+      clearInterval(vadIntervalRef.current)
+      vadIntervalRef.current = null
+    }
+    isListeningRef.current = false
+    setMicLevel(0)
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop()
+      }
+    } catch {}
+    mediaRecorderRef.current = null
+  }
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+      manualStopRef.current = true
+      teardownListening()
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop())
+      mediaStreamRef.current = null
+      audioContextRef.current?.close().catch(() => {})
+      audioContextRef.current = null
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel()
-      }
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop()
-        } catch {}
       }
     }
   }, [])
@@ -126,59 +169,166 @@ export default function PatientVoiceAssessment() {
       )
     : 100
 
-  // Pipelined Sentence-level Streaming TTS
-  const speakSentences = (
-    text: string,
-    onFirstPlaybackStart?: (timestamp: number) => void
-  ) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return
-    window.speechSynthesis.cancel()
+  const pickTtsVoice = (): SpeechSynthesisVoice | null => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return null
+    const voices = window.speechSynthesis.getVoices()
+    if (!voices.length) return null
+    const prefixes = lang === 'od' ? ['or', 'hi'] : lang === 'hi' ? ['hi'] : ['en-in', 'en']
+    for (const p of prefixes) {
+      const match = voices.find(
+        (v) => v.lang && v.lang.toLowerCase().replace('_', '-').startsWith(p)
+      )
+      if (match) return match
+    }
+    return null
+  }
 
-    // Natural sentence boundary splitting (. ! ? । |)
+  // Natural sentence boundary splitting (. ! ? । |)
+  const splitSentences = (text: string): string[] => {
     const rawChunks = text
       .split(/(?<=[.!?।|])\s+/)
       .map((s) => s.trim())
       .filter(Boolean)
-    const sentences = rawChunks.length > 0 ? rawChunks : [text.trim()]
+    if (rawChunks.length > 0) return rawChunks
+    return text.trim() ? [text.trim()] : []
+  }
 
-    setVoiceState('SPEAKING')
-    let firstPlaybackFired = false
+  const clearResumeHack = () => {
+    if (ttsResumeHackRef.current) {
+      window.clearInterval(ttsResumeHackRef.current)
+      ttsResumeHackRef.current = null
+    }
+  }
 
-    const playSentenceIndex = (index: number) => {
-      if (index >= sentences.length) {
-        setVoiceState('LISTENING')
-        startListening()
-        return
+  // Cancels any queued/active speech and invalidates in-flight callbacks.
+  const cancelTts = () => {
+    ttsGenerationRef.current += 1
+    ttsQueueRef.current = []
+    ttsActiveRef.current = false
+    ttsClosedRef.current = true
+    ttsFirstCbRef.current = null
+    ttsDoneCbRef.current = null
+    ttsFirstFiredRef.current = false
+    clearResumeHack()
+    try {
+      window.speechSynthesis?.cancel()
+    } catch {}
+  }
+
+  const finishTts = (generation: number, done: (() => void) | null) => {
+    if (ttsGenerationRef.current !== generation) return
+    clearResumeHack()
+    ttsActiveRef.current = false
+    ttsFirstCbRef.current = null
+    if (done) done()
+  }
+
+  const speakNextQueued = (generation: number) => {
+    if (ttsGenerationRef.current !== generation) return
+    if (!ttsQueueRef.current.length) {
+      ttsActiveRef.current = false
+      if (ttsClosedRef.current) {
+        const done = ttsDoneCbRef.current
+        ttsDoneCbRef.current = null
+        finishTts(generation, done)
       }
-
-      const utterance = new SpeechSynthesisUtterance(sentences[index])
-      utterance.lang = lang === 'hi' ? 'hi-IN' : lang === 'od' ? 'hi-IN' : 'en-IN'
-      utterance.rate = 1.0
-
-      utterance.onstart = () => {
-        if (!firstPlaybackFired) {
-          firstPlaybackFired = true
-          onFirstPlaybackStart?.(Date.now())
-        }
-      }
-
-      utterance.onend = () => {
-        playSentenceIndex(index + 1)
-      }
-
-      utterance.onerror = () => {
-        playSentenceIndex(index + 1)
-      }
-
-      window.speechSynthesis.speak(utterance)
+      return
     }
 
-    playSentenceIndex(0)
+    const sentence = ttsQueueRef.current.shift() as string
+    ttsActiveRef.current = true
+    const chosenVoice = pickTtsVoice()
+    const utterance = new SpeechSynthesisUtterance(sentence)
+    utterance.lang = lang === 'en' ? 'en-IN' : 'hi-IN'
+    utterance.rate = 1.0
+    if (chosenVoice) utterance.voice = chosenVoice
+
+    utterance.onstart = () => {
+      if (ttsGenerationRef.current !== generation) return
+      if (!ttsFirstFiredRef.current) {
+        ttsFirstFiredRef.current = true
+        ttsFirstCbRef.current?.(Date.now())
+      }
+    }
+
+    const advance = () => {
+      if (ttsGenerationRef.current !== generation) return
+      speakNextQueued(generation)
+    }
+    utterance.onend = advance
+    utterance.onerror = advance
+
+    try {
+      window.speechSynthesis.speak(utterance)
+    } catch {
+      advance()
+    }
+  }
+
+  // Appends a chunk of assistant text to the current turn's speech queue.
+  const enqueueSpeech = (text: string) => {
+    const pieces = splitSentences(text)
+    if (!pieces.length) return
+    ttsQueueRef.current.push(...pieces)
+    if (!ttsActiveRef.current) speakNextQueued(ttsGenerationRef.current)
+  }
+
+  // Starts speaking a new turn; onFirst fires on first audible playback (used to
+  // reopen the mic for barge-in), onDone fires once the queue has fully drained.
+  const beginTurnSpeech = (
+    firstText: string,
+    onFirstPlaybackStart?: (timestamp: number) => void,
+    onDone?: () => void
+  ) => {
+    cancelTts()
+    const generation = ttsGenerationRef.current
+    ttsClosedRef.current = false
+    ttsFirstFiredRef.current = false
+    ttsFirstCbRef.current = onFirstPlaybackStart || null
+    ttsDoneCbRef.current = onDone || null
+    applyVoiceState('SPEAKING')
+
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      // No browser TTS: synthesize a short delay so the turn still completes.
+      ttsActiveRef.current = false
+      ttsFirstFiredRef.current = true
+      ttsFirstCbRef.current?.(Date.now())
+      window.setTimeout(() => {
+        if (ttsGenerationRef.current !== generation) return
+        ttsClosedRef.current = true
+        const done = ttsDoneCbRef.current
+        ttsDoneCbRef.current = null
+        finishTts(generation, done)
+      }, 400)
+      return
+    }
+
+    // Chrome keeps utterances alive too long without a periodic resume() kick
+    ttsResumeHackRef.current = window.setInterval(() => {
+      try {
+        if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+          window.speechSynthesis.resume()
+        }
+      } catch {}
+    }, 8000)
+
+    enqueueSpeech(firstText)
+  }
+
+  // Marks the turn's text stream as complete; fires onDone once audio drains.
+  const endTurnSpeech = (extraText?: string) => {
+    if (extraText) enqueueSpeech(extraText)
+    ttsClosedRef.current = true
+    if (!ttsActiveRef.current) {
+      const done = ttsDoneCbRef.current
+      ttsDoneCbRef.current = null
+      finishTts(ttsGenerationRef.current, done)
+    }
   }
 
   // Initialize Case and Voice Session on Mount
   const startSession = async () => {
-    setVoiceState('CONNECTING')
+    applyVoiceState('CONNECTING')
     setErrorMsg(null)
     setIsEmergency(false)
     try {
@@ -203,121 +353,203 @@ export default function PatientVoiceAssessment() {
 
       const initialGreeting =
         lang === 'hi'
-          ? 'नमस्ते। कृपया बताएं आपको क्या समस्या हो रही है?'
+          ? 'नमस्ते! मैं सोनम हूँ, स्वास्थ्यफ्लो एआई की एआई हेल्थ असिस्टेंट। आपको किस हेल्थ प्रॉब्लम में मदद चाहिए?'
           : lang === 'od'
-          ? 'ନମସ୍କାର। ଦୟାକରି କୁହନ୍ତୁ ଆପଣଙ୍କର କଣ ଅସୁବିଧା ହେଉଛି?'
-          : 'Namaste. Please tell me what health concern you are experiencing today.'
+          ? 'ନମସ୍କାର! ମୁଁ ସୋନମ, ସ୍ୱାସ୍ଥ୍ୟଫ୍ଲୋ ଏଆଇର ଏଆଇ ସ୍ୱାସ୍ଥ୍ୟ ସହାୟିକା। ଆପଣଙ୍କୁ କେଉଁ ସ୍ୱାସ୍ଥ୍ୟ ସମସ୍ୟାରେ ସାହାଯ୍ୟ ଦରକାର?'
+          : 'Namaste! I am Sonam, an AI health intake assistant for SwasthyaFlow AI. What health concern do you need help with today?'
 
       setCurrentPrompt(initialGreeting)
-      speakSentences(initialGreeting)
+      beginTurnSpeech(initialGreeting, () => void startListening(), () => {
+        if (voiceStateRef.current === 'SPEAKING') applyVoiceState('LISTENING')
+      })
+      // Open the mic immediately so the patient can barge in during the greeting
+      void startListening()
     } catch (err) {
-      setVoiceState('ERROR')
+      applyVoiceState('ERROR')
       setErrorMsg(err instanceof Error ? err.message : 'Could not initialize voice agent')
     }
   }
 
-  // Voice Activity Detection & Speech Recognition listener
-  const startListening = () => {
-    if (!isSpeechSupported) return
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+  const blobToBase64 = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const result = String(reader.result || '')
+        resolve(result.includes(',') ? result.split(',')[1] : '')
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+
+  const pickRecorderMime = () => {
+    if (typeof MediaRecorder === 'undefined') return ''
+    for (const c of ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']) {
+      if (MediaRecorder.isTypeSupported(c)) return c
+    }
+    return ''
+  }
+
+  // Microphone capture + RMS voice-activity detection.
+  // Audio is uploaded to the backend, where Gemini transcribes it (works for
+  // Hindi, Odia and English — unlike the browser-only Web Speech API).
+  const startListening = async () => {
+    if (manualStopRef.current || isListeningRef.current) return
+    const state = voiceStateRef.current
+    if (state === 'PROCESSING' || state === 'COMPLETED' || state === 'ERROR' || state === 'IDLE') {
+      return
+    }
 
     try {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-      const recognition = new SpeechRecognition()
-      recognition.lang = lang === 'hi' ? 'hi-IN' : lang === 'od' ? 'or-IN' : 'en-IN'
-      recognition.continuous = true
-      recognition.interimResults = true
+      let stream = mediaStreamRef.current
+      const trackEnded = !stream || stream.getTracks().every((t) => t.readyState === 'ended')
+      if (trackEnded) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        })
+        mediaStreamRef.current = stream
+      }
+      if (!stream) throw new Error('no_microphone_stream')
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+        audioContextRef.current = new AudioContext()
+      }
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume()
+      }
+      const ctx = audioContextRef.current
+      const source = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 1024
+      source.connect(analyser)
+      analyserRef.current = analyser
 
-      recognition.onstart = () => {
-        setVoiceState('LISTENING')
+      if (!recorderMimeRef.current) recorderMimeRef.current = pickRecorderMime()
+      const recorder = new MediaRecorder(
+        stream,
+        recorderMimeRef.current ? { mimeType: recorderMimeRef.current } : undefined
+      )
+      audioChunksRef.current = []
+      hasSpeechRef.current = false
+      lastVoiceAtRef.current = Date.now()
+      shouldSubmitOnStopRef.current = false
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) audioChunksRef.current.push(event.data)
+      }
+      recorder.onstop = () => {
+        const shouldSubmit = shouldSubmitOnStopRef.current
+        const hadSpeech = hasSpeechRef.current
+        const chunks = audioChunksRef.current
+        const mime = recorderMimeRef.current || 'audio/webm'
+        audioChunksRef.current = []
+        if (!shouldSubmit || !hadSpeech || chunks.length === 0) return
+        const blob = new Blob(chunks, { type: mime })
+        if (blob.size < 200) return
+        const speechEndTime = Date.now()
+        speechEndTimestampRef.current = speechEndTime
+        blobToBase64(blob)
+          .then((b64) => {
+            if (!b64) return
+            handleSendTurn('', speechEndTime, { b64, mime: blob.type || mime })
+          })
+          .catch(() => {
+            applyVoiceState('ERROR')
+            setErrorMsg(
+              'Could not process microphone audio. Please try again or type your response below.'
+            )
+          })
       }
 
-      recognition.onresult = (event: any) => {
-        // Patient Barge-In / Interruption: cancel any currently playing assistant audio immediately
-        if (window.speechSynthesis && window.speechSynthesis.speaking) {
-          window.speechSynthesis.cancel()
-          setVoiceState('LISTENING')
-        }
+      mediaRecorderRef.current = recorder
+      recorder.start(250)
+      isListeningRef.current = true
+      // Keep the SPEAKING state while the assistant talks so patient barge-in
+      // (detected by the VAD below) can cancel TTS; otherwise show LISTENING.
+      if (voiceStateRef.current !== 'SPEAKING') applyVoiceState('LISTENING')
 
-        let finalStr = ''
-        let interimStr = ''
-        for (let i = 0; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalStr += event.results[i][0].transcript
-          } else {
-            interimStr += event.results[i][0].transcript
+      const timeDomain = new Uint8Array(analyser.fftSize)
+      vadIntervalRef.current = window.setInterval(() => {
+        analyser.getByteTimeDomainData(timeDomain)
+        let sum = 0
+        for (let i = 0; i < timeDomain.length; i++) {
+          const v = (timeDomain[i] - 128) / 128
+          sum += v * v
+        }
+        const rms = Math.sqrt(sum / timeDomain.length)
+        setMicLevel((prev) => prev * 0.55 + rms * 0.45)
+
+        if (rms >= SPEECH_RMS_THRESHOLD) {
+          if (!hasSpeechRef.current) hasSpeechRef.current = true
+          lastVoiceAtRef.current = Date.now()
+          // Patient barge-in: cut the assistant off the moment the user speaks
+          if (voiceStateRef.current === 'SPEAKING') {
+            cancelTts()
+            applyVoiceState('LISTENING')
           }
+        } else if (
+          hasSpeechRef.current &&
+          Date.now() - lastVoiceAtRef.current > SILENCE_THRESHOLD_MS
+        ) {
+          stopListening(true)
         }
-
-        const currentText = (finalStr + ' ' + interimStr).trim()
-        if (!currentText) return
-
-        setPatientTranscript(currentText)
-        lastTranscriptRef.current = currentText
-
-        // Voice Activity Detection: Reset silence timer on every new speech packet
-        if (silenceTimerRef.current) {
-          clearTimeout(silenceTimerRef.current)
-        }
-
-        silenceTimerRef.current = setTimeout(() => {
-          if (lastTranscriptRef.current.trim() && voiceState !== 'PROCESSING') {
-            const speechEndTime = Date.now()
-            speechEndTimestampRef.current = speechEndTime
-            try {
-              recognition.stop()
-            } catch {}
-            handleSendTurn(lastTranscriptRef.current.trim(), speechEndTime)
-          }
-        }, SILENCE_THRESHOLD_MS)
+      }, 80)
+    } catch (err) {
+      isListeningRef.current = false
+      const name = err instanceof DOMException ? err.name : ''
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        setErrorMsg(
+          'Microphone access denied. Please allow microphone access in your browser settings, then press Resume Microphone.'
+        )
+      } else {
+        setErrorMsg(
+          'Could not open the microphone. Please check your input device, or type your response below.'
+        )
       }
-
-      recognition.onerror = (event: any) => {
-        if (event.error === 'not-allowed') {
-          setErrorMsg('Microphone access denied. Please grant permission in browser settings.')
-          setVoiceState('ERROR')
-        }
-      }
-
-      recognition.onend = () => {
-        // If recognition closed unexpectedly and we have unsubmitted speech
-        if (lastTranscriptRef.current.trim() && voiceState === 'LISTENING') {
-          const speechEndTime = Date.now()
-          speechEndTimestampRef.current = speechEndTime
-          handleSendTurn(lastTranscriptRef.current.trim(), speechEndTime)
-        }
-      }
-
-      recognitionRef.current = recognition
-      recognition.start()
-    } catch {
-      // Speech recognition fallback
+      applyVoiceState('ERROR')
     }
   }
 
-  // Handle Turn with Real-Time Latency Tracking
-  const handleSendTurn = async (userText: string, speechEndTime?: number) => {
-    if (!userText || !caseDetail || !voiceSession) return
-
-    // Clear timers and stop listener
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop()
-      } catch {}
+  // Stops the recorder; when submit=true the captured audio is sent as a turn
+  const stopListening = (submit: boolean) => {
+    shouldSubmitOnStopRef.current = submit
+    if (vadIntervalRef.current) {
+      clearInterval(vadIntervalRef.current)
+      vadIntervalRef.current = null
     }
+    isListeningRef.current = false
+    setMicLevel(0)
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop()
+      }
+    } catch {}
+    mediaRecorderRef.current = null
+  }
+
+  // Handle Turn with Real-Time Latency Tracking (text OR recorded audio)
+  const handleSendTurn = async (
+    userText: string,
+    speechEndTime?: number,
+    audio?: { b64: string; mime: string }
+  ) => {
+    if ((!userText && !audio) || !caseDetail || !voiceSession) return
+
+    // Pause the mic while the turn is in flight
+    stopListening(false)
 
     // 1. Record Speech-End and STT timestamps
     const tSpeechEnd = speechEndTime || speechEndTimestampRef.current || Date.now()
     const tSttDone = Date.now()
-    setVoiceState('PROCESSING')
+    applyVoiceState('PROCESSING')
 
     // 2. Safe brief acknowledgement if external service exceeds 1.8s
     let ackTimeout: any = null
     let acknowledged = false
     ackTimeout = setTimeout(() => {
-      if (voiceState === 'PROCESSING' && !acknowledged) {
+      if (voiceStateRef.current === 'PROCESSING' && !acknowledged) {
         acknowledged = true
         const ackText =
           lang === 'hi'
@@ -336,6 +568,9 @@ export default function PatientVoiceAssessment() {
       let tTtsPrep = 0
 
       // Stream turn using SSE for real-time sentence-by-sentence playback
+      const turnBody = audio
+        ? { audio_b64: audio.b64, audio_mime: audio.mime }
+        : { text: userText }
       const response = await fetch(
         `/api/cases/${caseDetail.id}/voice/sessions/${voiceSession.public_id}/turns/stream`,
         {
@@ -344,55 +579,96 @@ export default function PatientVoiceAssessment() {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ text: userText }),
+          body: JSON.stringify(turnBody),
         }
       )
 
       if (ackTimeout) clearTimeout(ackTimeout)
 
+      // Reopen the mic right after the assistant starts talking so the patient
+      // can barge in; once the turn's audio drains, either auto-submit the case
+      // to the doctor or simply resume listening.
+      const reopenMic = () => void startListening()
+      const finishTurn = () => {
+        if (pendingAutoSubmitRef.current) {
+          pendingAutoSubmitRef.current = false
+          applyVoiceState('COMPLETED')
+          stopListening(false)
+          void handleSubmitDirectToDoctor()
+        } else if (voiceStateRef.current === 'SPEAKING') {
+          applyVoiceState('LISTENING')
+        }
+      }
+
       if (response.ok && response.body) {
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
         let streamDone = false
-        let firstSentencePlayed = false
+        let turnSpeechStarted = false
+        let buffered = ''
 
         while (!streamDone) {
           const { done, value } = await reader.read()
           if (done) break
-          const chunk = decoder.decode(value, { stream: true })
-          const lines = chunk.split('\n')
+          buffered += decoder.decode(value, { stream: true })
+          const lines = buffered.split('\n')
+          buffered = lines.pop() ?? ''
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6))
-                if (data.type === 'sentence' && !firstSentencePlayed) {
-                  firstSentencePlayed = true
+            if (!line.startsWith('data: ')) continue
+            try {
+              const data = JSON.parse(line.slice(6))
+              if (data.type === 'error') {
+                setErrorMsg(data.error || 'Voice turn failed')
+              } else if (data.type === 'sentence') {
+                if (!turnSpeechStarted) {
+                  turnSpeechStarted = true
                   tFirstToken = Date.now()
                   tTtsPrep = Date.now()
 
-                  // Start TTS immediately on first sentence!
-                  speakSentences(data.text, (playbackStart) => {
-                    recordTurnDiagnostics(
-                      tSpeechEnd,
-                      tSttDone,
-                      tFirstToken,
-                      tTtsPrep,
-                      playbackStart,
-                      data.provider || 'gemini',
-                      false
-                    )
-                  })
+                  // Start TTS immediately on the first sentence!
+                  beginTurnSpeech(
+                    data.text,
+                    (playbackStart) =>
+                      recordTurnDiagnostics(
+                        tSpeechEnd,
+                        tSttDone,
+                        tFirstToken,
+                        tTtsPrep,
+                        playbackStart,
+                        data.provider || 'gemini',
+                        false
+                      ),
+                    finishTurn
+                  )
                   setCurrentPrompt(data.text)
-                } else if (data.type === 'complete') {
-                  turnRes = data
-                  if (data.is_emergency) {
-                    setIsEmergency(true)
-                  }
-                  if (!firstSentencePlayed) {
-                    tFirstToken = Date.now()
-                    tTtsPrep = Date.now()
-                    speakSentences(data.reply, (playbackStart) => {
+                  reopenMic()
+                } else {
+                  // Queue every subsequent sentence, not just the first one
+                  enqueueSpeech(data.text)
+                  setCurrentPrompt((prev) =>
+                    prev === data.text ? prev : `${prev} ${data.text}`
+                  )
+                }
+              } else if (data.type === 'complete') {
+                turnRes = data
+                if (data.is_emergency) {
+                  setIsEmergency(true)
+                }
+                if (data.transcript) {
+                  lastTranscriptRef.current = data.transcript
+                  setPatientTranscript(data.transcript)
+                }
+                if (data.can_submit || data.is_emergency) {
+                  pendingAutoSubmitRef.current = true
+                }
+                if (!turnSpeechStarted) {
+                  turnSpeechStarted = true
+                  tFirstToken = Date.now()
+                  tTtsPrep = Date.now()
+                  beginTurnSpeech(
+                    data.reply,
+                    (playbackStart) =>
                       recordTurnDiagnostics(
                         tSpeechEnd,
                         tSttDone,
@@ -401,13 +677,16 @@ export default function PatientVoiceAssessment() {
                         playbackStart,
                         data.provider || 'gemini',
                         Boolean(data.is_emergency)
-                      )
-                    })
-                    setCurrentPrompt(data.reply)
-                  }
+                      ),
+                    finishTurn
+                  )
+                  setCurrentPrompt(data.reply)
+                  reopenMic()
+                } else {
+                  endTurnSpeech()
                 }
-              } catch {}
-            }
+              }
+            } catch {}
           }
         }
       }
@@ -418,27 +697,37 @@ export default function PatientVoiceAssessment() {
           `/api/cases/${caseDetail.id}/voice/sessions/${voiceSession.public_id}/turns`,
           {
             method: 'POST',
-            body: { text: userText },
+            body: turnBody,
           }
         )
+        if (turnRes.transcript) {
+          lastTranscriptRef.current = turnRes.transcript
+          setPatientTranscript(turnRes.transcript)
+        }
         if (!tFirstToken) tFirstToken = Date.now()
         if (!tTtsPrep) tTtsPrep = Date.now()
-        speakSentences(turnRes.reply, (playbackStart) => {
-          recordTurnDiagnostics(
-            tSpeechEnd,
-            tSttDone,
-            tFirstToken,
-            tTtsPrep,
-            playbackStart,
-            turnRes?.provider || 'mock',
-            Boolean(turnRes?.status === 'SPEAKING' && userText.toLowerCase().includes('chest'))
-          )
-        })
+        if (turnRes.can_submit) pendingAutoSubmitRef.current = true
+        beginTurnSpeech(
+          turnRes.reply,
+          (playbackStart) =>
+            recordTurnDiagnostics(
+              tSpeechEnd,
+              tSttDone,
+              tFirstToken,
+              tTtsPrep,
+              playbackStart,
+              turnRes?.provider || 'mock',
+              false
+            ),
+          finishTurn
+        )
         setCurrentPrompt(turnRes.reply)
+        reopenMic()
       }
 
       // Update extracted clinical symptoms
       if (turnRes) {
+        const answerText = (userText || turnRes.transcript || '').toLowerCase()
         setExtracted((prev) => {
           const symptoms = Array.from(
             new Set([...prev.symptoms, ...(turnRes?.added_symptoms || [])])
@@ -447,7 +736,7 @@ export default function PatientVoiceAssessment() {
             ...prev,
             symptoms,
             duration:
-              userText.toLowerCase().includes('din') || userText.toLowerCase().includes('day')
+              answerText.includes('din') || answerText.includes('day') || answerText.includes('दिन')
                 ? 'Reported'
                 : prev.duration,
             measurements: turnRes?.added_measurement
@@ -455,14 +744,10 @@ export default function PatientVoiceAssessment() {
               : prev.measurements,
           }
         })
-
-        if (turnRes.can_submit) {
-          setVoiceState('COMPLETED')
-        }
       }
     } catch (err) {
       if (ackTimeout) clearTimeout(ackTimeout)
-      setVoiceState('ERROR')
+      applyVoiceState('ERROR')
       setErrorMsg(err instanceof Error ? err.message : 'Turn processing failed')
     }
   }
@@ -502,13 +787,23 @@ export default function PatientVoiceAssessment() {
     setDiagnosticsHistory((prev) => [diag, ...prev])
   }
 
-  // Immediate "Done Speaking" manual trigger
+  // Immediate "Stop & Send" manual trigger
   const handleImmediateSend = () => {
-    if (patientTranscript.trim() && voiceState === 'LISTENING') {
+    if (isListeningRef.current) {
+      stopListening(true)
+      return
+    }
+    if (patientTranscript.trim() && voiceStateRef.current === 'LISTENING') {
       const speechEndTime = Date.now()
       speechEndTimestampRef.current = speechEndTime
       handleSendTurn(patientTranscript.trim(), speechEndTime)
     }
+  }
+
+  const resumeMicrophone = () => {
+    setErrorMsg(null)
+    applyVoiceState('LISTENING')
+    void startListening()
   }
 
   const [submittingToDoctor, setSubmittingToDoctor] = useState(false)
@@ -520,16 +815,12 @@ export default function PatientVoiceAssessment() {
     setSubmittingToDoctor(true)
     setErrorMsg(null)
     try {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop()
-        } catch {}
-      }
+      stopListening(false)
+      cancelTts()
       if (voiceSession) {
         try {
-          await api(`/api/cases/${caseDetail.id}/voice/sessions/${voiceSession.public_id}`, {
-            method: 'PATCH',
-            body: { status: 'COMPLETED' },
+          await api(`/api/cases/${caseDetail.id}/voice/sessions/${voiceSession.public_id}/complete`, {
+            method: 'POST',
           })
         } catch {}
       }
@@ -550,7 +841,9 @@ export default function PatientVoiceAssessment() {
           : lang === 'od'
           ? 'ଆପଣଙ୍କ କେସ୍ ଡାକ୍ତରଙ୍କ ପାଖକୁ ପଠାଯାଇଛି। ଡାକ୍ତରଙ୍କୁ ସୂଚନା ମିଳିଛି।'
           : 'Your assessment has been successfully sent to the doctor. The clinical team has been notified.'
-      speakSentences(confirmSpeech)
+      beginTurnSpeech(confirmSpeech, undefined, () => {
+        if (voiceStateRef.current === 'SPEAKING') applyVoiceState('COMPLETED')
+      })
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to submit case to doctor')
     } finally {
@@ -559,18 +852,14 @@ export default function PatientVoiceAssessment() {
   }
 
   const handleEndConversation = async () => {
-    if (window.speechSynthesis) window.speechSynthesis.cancel()
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop()
-      } catch {}
-    }
+    manualStopRef.current = true
+    stopListening(false)
+    cancelTts()
 
     if (caseDetail) {
       try {
-        await api(`/api/cases/${caseDetail.id}/voice/sessions/${voiceSession?.public_id}`, {
-          method: 'PATCH',
-          body: { status: 'COMPLETED' },
+        await api(`/api/cases/${caseDetail.id}/voice/sessions/${voiceSession?.public_id}/complete`, {
+          method: 'POST',
         })
       } catch {}
       navigate(`/app/patient/cases/${caseDetail.id}`)
@@ -625,14 +914,14 @@ export default function PatientVoiceAssessment() {
       {/* Main Voice Agent Card */}
       <div className="overflow-hidden rounded-3xl border border-teal-200 bg-white shadow-xl">
         {/* Header bar */}
-        <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-teal-50/70 px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-teal-50/70 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-700 text-white shadow-sm">
               <HeartPulse className="h-5 w-5 animate-pulse" />
             </span>
             <div className="min-w-0">
-              <h1 className="text-base font-bold text-slate-900">AI Voice Assessment</h1>
-              <p className="truncate text-[11px] text-slate-500">Real-time Triage · VAD Silence Detection</p>
+              <h1 className="text-base font-bold text-slate-900">Talk to Sonam — AI Health Intake</h1>
+              <p className="truncate text-[11px] text-slate-500">Multilingual Clinical Triage · Direct Doctor Queue Delivery</p>
             </div>
           </div>
 
@@ -667,11 +956,10 @@ export default function PatientVoiceAssessment() {
                 <Mic className="h-8 w-8 sm:h-10 sm:w-10" />
               </span>
               <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
-                Ready to speak with AI Assistant?
+                Ready to speak with Sonam?
               </h2>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Speak naturally in Hindi, Odia, or English. The assistant responds within seconds to
-                gather facts and prepare a triage summary for your doctor.
+                Speak naturally in Hindi, Odia, or English. Sonam is an AI health assistant who gathers facts, checks for red-flag symptoms, and sends your structured summary straight to the doctor.
               </p>
               <button
                 type="button"
@@ -679,18 +967,18 @@ export default function PatientVoiceAssessment() {
                 className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-teal-700 px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-teal-700/25 transition hover:bg-teal-800 active:scale-95"
               >
                 <Mic className="h-4 w-4" />
-                Start Voice Assessment
+                Start Voice Conversation with Sonam
               </button>
             </div>
           ) : (
-            <div className="w-full max-w-lg space-y-6">
+            <div className="w-full max-w-lg space-y-4 sm:space-y-6">
               {/* Dynamic Waveform Visualizer */}
-              <div className="relative flex h-24 items-center justify-center gap-1.5 rounded-2xl bg-slate-950 px-6 shadow-inner">
+              <div className="relative flex h-20 items-center justify-center gap-1 rounded-2xl bg-slate-950 px-3 shadow-inner sm:h-24 sm:gap-1.5 sm:px-6">
                 {[30, 55, 80, 45, 95, 70, 40, 85, 60, 40, 90, 75, 50, 65, 85, 45, 60].map(
                   (h, i) => (
                     <div
                       key={i}
-                      className={`w-1.5 rounded-full transition-all duration-150 ${
+                      className={`w-1 rounded-full transition-all duration-150 sm:w-1.5 ${
                         voiceState === 'LISTENING'
                           ? 'bg-emerald-400'
                           : voiceState === 'SPEAKING'
@@ -699,7 +987,12 @@ export default function PatientVoiceAssessment() {
                       }`}
                       style={{
                         height:
-                          voiceState === 'LISTENING' || voiceState === 'SPEAKING'
+                          voiceState === 'LISTENING'
+                            ? `${Math.max(
+                                15,
+                                (h * ((i % 3) + 1) + Math.min(1, micLevel * 5) * 320) % 100
+                              )}%`
+                            : voiceState === 'SPEAKING'
                             ? `${Math.max(20, (h * ((i % 3) + 1)) % 100)}%`
                             : '15%',
                       }}
@@ -714,7 +1007,7 @@ export default function PatientVoiceAssessment() {
                   <Volume2 className="h-4 w-4" />
                   Assistant Question:
                 </div>
-                <p className="mt-2 text-sm font-semibold text-slate-900 leading-relaxed">
+                <p className="mt-2 break-words text-sm font-semibold text-slate-900 leading-relaxed">
                   "{currentPrompt}"
                 </p>
               </div>
@@ -731,7 +1024,7 @@ export default function PatientVoiceAssessment() {
                   )}
                 </div>
 
-                <p className="mt-2 text-sm text-slate-800 min-h-[30px] italic">
+                <p className="mt-2 min-h-[30px] break-words text-sm text-slate-800 italic">
                   {patientTranscript ||
                     (voiceState === 'LISTENING'
                       ? 'Speak clearly into your microphone...'
@@ -871,9 +1164,19 @@ export default function PatientVoiceAssessment() {
           )}
 
           {errorMsg && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{errorMsg}</span>
+              <span className="min-w-0 flex-1">{errorMsg}</span>
+              {voiceState === 'ERROR' && (
+                <button
+                  type="button"
+                  onClick={resumeMicrophone}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-95"
+                >
+                  <Mic className="h-3.5 w-3.5" />
+                  Resume Microphone
+                </button>
+              )}
             </div>
           )}
         </div>

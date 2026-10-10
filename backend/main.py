@@ -19,6 +19,7 @@ from api.admin import router as admin_router
 from api.ai_clinical import router as ai_clinical_router
 from api.ai_evaluation import router as ai_evaluation_router
 from api.auth import router as auth_router
+from api.callbacks import router as callbacks_router
 from api.cases import router as cases_router
 from api.chat import router as chat_router
 from api.documents import router as documents_router
@@ -33,6 +34,7 @@ from api.referrals import router as referrals_router
 from api.reviews import router as reviews_router
 from api.safety import router as safety_router
 from api.telecalls import router as telecalls_router
+from api.telephony_webhooks import router as telephony_webhooks_router
 from api.voice import router as voice_router
 from config import settings
 from middleware.errors import install_error_handlers
@@ -95,6 +97,8 @@ async def request_id_middleware(request: Request, call_next: Callable):
 install_error_handlers(app)
 
 app.include_router(auth_router)
+app.include_router(callbacks_router)
+app.include_router(telephony_webhooks_router)
 app.include_router(patients_router)
 app.include_router(cases_router)
 app.include_router(chat_router)

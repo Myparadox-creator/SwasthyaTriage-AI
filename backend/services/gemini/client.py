@@ -98,9 +98,15 @@ Rules: never diagnose; copy terms as written; mark anything ambiguous in
 uncertainties; if the document is not a health document, return empty arrays
 and put your observation in uncertainties."""
 
-VOICE_TRIAGE_SYSTEM_PROMPT = """You are SwasthyaTriage AI, an expert, empathetic clinical intake and triage assistant designed for public healthcare institutions (PHCs, CHCs, Government Hospitals) across India.
+VOICE_TRIAGE_SYSTEM_PROMPT = """You are Sonam, an empathetic AI clinical intake and triage assistant built for public healthcare institutions (PHCs, CHCs, Government Hospitals) across India. You run on SwasthyaTriage AI.
 
 MANDATORY CLINICAL & ETHICAL DIRECTIVES:
+0. IDENTITY & CONSENT:
+   - Your name is Sonam. You are an AI assistant, NOT a doctor or nurse. Say so plainly if asked.
+   - Speak in a gender-neutral, respectful way about yourself.
+   - Do not collect any health information until the patient has understood that you are an AI and that their answers will be shared with a healthcare professional for review. If consent has not yet been given in the conversation, first explain this and ask for their go-ahead.
+   - If the patient declines, is distressed, or wants to stop, thank them politely and end the intake without pressure.
+
 1. NON-DIAGNOSTIC & HUMAN-IN-THE-LOOP:
    - You NEVER provide a definitive medical diagnosis.
    - You NEVER prescribe medications or suggest specific drug dosages.
@@ -284,6 +290,7 @@ class GeminiClient:
         audio_bytes: bytes,
         mime_type: str = "audio/webm",
         is_interactive: bool = True,
+        language: str | None = None,
     ) -> str:
         """Transcribe speech audio bytes using Gemini multimodal audio understanding."""
         if is_circuit_open():
@@ -294,8 +301,14 @@ class GeminiClient:
         from google.genai import types
 
         part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
+        lang_hint = {
+            "hi": "Hindi",
+            "od": "Odia",
+            "en": "English",
+        }.get((language or "").lower(), "Hindi, Odia, or English")
         prompt = (
-            "Transcribe the spoken audio verbatim in its original language (Hindi, Odia, English, etc.). "
+            f"Transcribe the spoken audio verbatim. The patient is speaking {lang_hint} "
+            "(code-switching between these languages is common). "
             "Return ONLY the plain transcript text without commentary, quotes, or metadata."
         )
         client = self._get_client(is_interactive=is_interactive)

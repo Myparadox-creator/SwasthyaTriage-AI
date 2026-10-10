@@ -31,6 +31,60 @@ from services.safety.service import reevaluate_case
 
 logger = logging.getLogger("swasthyatriage.voice.agent")
 
+ASSISTANT_NAME = "Sonam"
+
+# First-contact identity + consent disclosure, per language. Sonam introduces
+# itself as an AI (not a doctor) and asks for consent before collecting anything.
+SONAM_GREETING: dict[str, str] = {
+    "en": (
+        "Namaste, I am Sonam, an AI health intake assistant from SwasthyaTriage AI. "
+        "I am not a doctor and I do not diagnose or prescribe. If you are comfortable, "
+        "I will ask a few questions about your health, and your answers will be shared "
+        "with a healthcare professional for review. Shall we begin?"
+    ),
+    "hi": (
+        "नमस्ते, मैं सोनम हूँ, स्वास्थ्यट्राइएज एआई की एक एआई स्वास्थ्य सहायक हूँ। "
+        "मैं डॉक्टर नहीं हूँ और कोई निदान या दवा नहीं बताती। यदि आप सहज हों, तो मैं आपके "
+        "स्वास्थ्य के बारे में कुछ सवाल पूछूँगी, और आपके उत्तर एक स्वास्थ्य पेशेवर की "
+        "समीक्षा के लिए साझा किए जाएँगे। क्या हम शुरू करें?"
+    ),
+    "od": (
+        "ନମସ୍କାର, ମୁଁ ସୋନମ, ସ୍ୱାସ୍ଥ୍ୟଟ୍ରାଇଏଜ ଏଆଇର ଜଣେ ଏଆଇ ସ୍ୱାସ୍ଥ୍ୟ ସହାୟିକା। "
+        "ମୁଁ ଡାକ୍ତର ନୁହେଁ ଏବଂ କୌଣସି ରୋଗ ନିର୍ଣ୍ଣୟ କିମ୍ବା ଔଷଧ ଦେଇ ନଥାଏ। ଆପଣ ସହଜ ଥିଲେ, "
+        "ମୁଁ ଆପଣଙ୍କ ସ୍ୱାସ୍ଥ୍ୟ ବିଷୟରେ କିଛି ପ୍ରଶ୍ନ ପଚାରିବି, ଏବଂ ଆପଣଙ୍କ ଉତ୍ତର ଜଣେ "
+        "ସ୍ୱାସ୍ଥ୍ୟ ପେସାଦାରଙ୍କ ସମୀକ୍ଷା ପାଇଁ ସେୟାର କରାଯିବ। ଆମେ ଆରମ୍ଭ କରିବା?"
+    ),
+}
+
+
+def build_emergency_reply(lang_code: str) -> str:
+    """Red-flag safety reply: always gives national emergency numbers.
+
+    A configured supplementary contact is offered as additional help. We never
+    claim that a call has been connected or placed — only that the patient can
+    dial, or that the care team can be reached on the number.
+    """
+    contact = (settings.emergency_escalation_contact or "").strip()
+    extra_en = f" You may also reach our emergency desk at {contact}." if contact else ""
+    extra_hi = f" आप हमारे आपातकालीन डेस्क {contact} पर भी संपर्क कर सकते हैं।" if contact else ""
+    extra_od = f" ଆପଣ ଆମର ଆପାତକାଳୀନ ଡେସ୍କ {contact} ରେ ମଧ୍ୟ ଯୋଗାଯୋଗ କରିପାରିବେ।" if contact else ""
+
+    if lang_code == "hi":
+        return (
+            "🚨 गंभीर चेतावनी संकेत मिले हैं। कृपया तुरंत नज़दीकी अस्पताल के आपातकालीन "
+            f"विभाग में जाएँ या 108 / 112 एम्बुलेंस को कॉल करें।{extra_hi}"
+        )
+    if lang_code == "od":
+        return (
+            "🚨 ଗୁରୁତର ସୂଚକ ଚିହ୍ନ ମିଳିଛି। ଦୟାକରି ତୁରନ୍ତ ନିକଟସ୍ଥ ଡାକ୍ତରଖାନାର "
+            f"ଆପାତକାଳୀନ ବିଭାଗକୁ ଯାଆନ୍ତୁ କିମ୍ବା ୧୦୮ / ୧୧୨ ଆମ୍ବୁଲାନ୍ସ ଡାକନ୍ତୁ।{extra_od}"
+        )
+    return (
+        "🚨 Critical red-flag symptoms detected. Please seek emergency care immediately "
+        f"at the nearest hospital or call 108 / 112 for an ambulance.{extra_en}"
+    )
+
+
 
 def _is_emergency_text(text: str) -> bool:
     """Regex pattern detector for critical clinical red flags across English, Hindi, and Odia."""
@@ -137,21 +191,7 @@ class MockVoiceAgent(VoiceAgent):
         if is_emergency:
             case.priority = Priority.URGENT_REVIEW
             lang_code = case.language.value if case.language else "hi"
-            if lang_code == "hi":
-                reply_text = (
-                    "🚨 गंभीर लक्षण मिले हैं। कृपया तुरंत नजदीकी अस्पताल के आपातकालीन विभाग में जाएं "
-                    "या 108 / 112 एम्बुलेंस को कॉल करें।"
-                )
-            elif lang_code == "od":
-                reply_text = (
-                    "🚨 ଜରୁରୀକାଳୀନ ଲକ୍ଷଣ ଦେଖାଦେଇଛି। ଦୟାକରି ତୁରନ୍ତ ନିକଟସ୍ଥ ଡାକ୍ତରଖାନାରେ ଯାଆନ୍ତୁ "
-                    "କିମ୍ବା ୧୦୮ / ୧୧୨ ଆମ୍ବୁଲାନ୍ସ ଡାକନ୍ତୁ।"
-                )
-            else:
-                reply_text = (
-                    "🚨 Critical red flag symptoms detected. Please seek emergency medical care immediately "
-                    "at the nearest hospital or call 108 / 112 for an ambulance."
-                )
+            reply_text = build_emergency_reply(lang_code)
         else:
             reply_text = build_reply(case, extraction, q)
 
@@ -214,6 +254,7 @@ class GeminiVoiceAgent(VoiceAgent):
 
         user_transcript: str | None = None
         effective_text = (user_text or "").strip()
+        lang = case.language.value if case.language else "hi"
 
         # Critical Safety Directive: Never delay emergency escalation while waiting for an external LLM
         if _is_emergency_text(effective_text):
@@ -234,7 +275,10 @@ class GeminiVoiceAgent(VoiceAgent):
             try:
                 raw_bytes = base64.b64decode(audio_b64)
                 transcribed = self._gemini.transcribe_audio(
-                    raw_bytes, mime_type=audio_mime or "audio/webm", is_interactive=True
+                    raw_bytes,
+                    mime_type=audio_mime or "audio/webm",
+                    is_interactive=True,
+                    language=lang,
                 )
                 if transcribed:
                     user_transcript = transcribed
@@ -261,7 +305,6 @@ class GeminiVoiceAgent(VoiceAgent):
                 "existing_measurements": [f"{m.name}: {m.value}{m.unit}" for m in case.measurements],
                 "timeline": case.timeline_text,
             }
-            lang = case.language.value if case.language else "hi"
             res = self._gemini.triage_voice_turn(
                 user_text=effective_text,
                 language=lang,
@@ -343,6 +386,13 @@ class GeminiVoiceAgent(VoiceAgent):
                 "reason": res.get("emergency_reason") or "Critical clinical red flags detected during voice assessment",
                 "urgency": urgency,
             }
+            contact = (settings.emergency_escalation_contact or "").strip()
+            if contact and contact not in reply_text:
+                suffix = {
+                    "hi": f" आप हमारे आपातकालीन डेस्क {contact} पर भी संपर्क कर सकते हैं।",
+                    "od": f" ଆପଣ ଆମର ଆପାତକାଳୀନ ଡେସ୍କ {contact} ରେ ମଧ୍ୟ ଯୋଗାଯୋଗ କରିପାରିବେ।",
+                }.get(lang, f" You may also reach our emergency desk at {contact}.")
+                reply_text = f"{reply_text}{suffix}"
 
         # 5. Safety Reevaluation
         reevaluate_case(db, case, trigger="voice", actor=actor, extra_free_text=effective_text)

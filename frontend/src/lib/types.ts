@@ -424,6 +424,7 @@ export interface VoiceTurnResponse {
   added_measurement: boolean
   provider: string
   diagnostics?: Record<string, any>
+  transcript?: string | null
 }
 
 export interface FacilityOut {
@@ -714,4 +715,32 @@ export interface EvaluationTrendResponse {
   thresholds: Record<string, { better: string; limit: number; drift_delta: number }>
   is_clinical_validation: boolean
   note: string
+}
+
+export interface CallbackRequestCreate {
+  phone_number: string
+  language: 'en' | 'hi' | 'od'
+  purpose?: string
+  consent_ai: boolean
+}
+
+export interface CallbackRequestOut {
+  id: number
+  public_id: string
+  case_id: number
+  case_number: string | null
+  status: CallStatus
+  provider: string
+  mode: string
+  phone_masked: string
+  language: 'en' | 'hi' | 'od' | string
+  purpose: string | null
+  consent_ai: boolean
+  message: string
+  created_at: string
+}
+
+export interface CallbackListResponse {
+  items: CallbackRequestOut[]
+  total: number
 }

@@ -120,13 +120,13 @@ const CLINICAL_SCENARIOS: ClinicalScenario[] = [
 const PIPELINE_STEPS = [
   {
     number: '01',
-    title: 'Multimodal Voice & Prescription Intake',
-    odiaTitle: 'ବହୁମୁଖୀ ସ୍ୱର ଓ ପ୍ରେସକ୍ରିପସନ୍ ଗ୍ରହଣ',
+    title: 'Sonam AI Voice Intake & SnapServe Syndication',
+    odiaTitle: 'ସୋନମ ଏଆଇ ସ୍ୱର ଓ ପ୍ରେସକ୍ରିପସନ୍ ଗ୍ରହଣ',
     badge: 'STAGE 1: INTAKE',
     icon: Mic,
-    desc: 'Frontline patients talk naturally in colloquial Odia, Sambalpuri, or Hindi via mobile browser or village kiosk. Paper slips and lab reports are photographed via mobile camera.',
-    metrics: 'Under 1.2s transcription · 98.6% dialect word accuracy',
-    tech: 'WebAudio API · Gemini Multimodal Vision OCR · Whisper / Native Indian ASR',
+    desc: 'Patients converse naturally with Sonam in Hindi, Odia, or English via browser voice or scheduled phone callback. Integrated with SnapServe AI lead capture for seamless care desk coordination.',
+    metrics: 'Under 1.2s transcription · 98.6% dialect word accuracy · SnapServe Live',
+    tech: 'Sonam AI Voice Agent · Gemini Live Multimodal · SnapServe AI · WebAudio API',
   },
   {
     number: '02',
@@ -154,9 +154,9 @@ const PIPELINE_STEPS = [
     odiaTitle: 'ଡାକ୍ତରୀ ସମୀକ୍ଷା ଓ ଟେଲି-କଲିଂ ପରାମର୍ଶ',
     badge: 'STAGE 4: CLINICAL HANDOFF',
     icon: Stethoscope,
-    desc: 'The on-duty Medical Officer views color-coded triage cards, reviews voice recordings side-by-side with structured notes, issues 1-click verified advice, or triggers automated patient tele-calling.',
-    metrics: '<45s average handoff latency · Real-time Email & SMS alerts',
-    tech: 'FastAPI Handoff Engine · WebRTC VideoSDK Tele-rounds · Gmail/SMTP Email',
+    desc: 'The on-duty Medical Officer reviews structured triage notes gathered by Sonam side-by-side with transcripts, receives immediate hand-off notifications, or triggers automated patient tele-calling.',
+    metrics: '<45s average handoff latency · Real-time Email & Telephony alerts',
+    tech: 'FastAPI Handoff Engine · WebRTC VideoSDK Tele-rounds · Sonam Callback Queue',
   },
   {
     number: '05',

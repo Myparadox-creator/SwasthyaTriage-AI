@@ -9,11 +9,14 @@ import {
   MapPin,
   MessageSquareText,
   Mic,
+  PhoneCall,
   PlusCircle,
   ShieldCheck,
   Upload,
 } from 'lucide-react'
+import SonamFloatingAssistant from '../../../components/voice/SonamFloatingAssistant'
 import { useAuthStore } from '../../../stores/auth'
+import { useTranslation } from 'react-i18next'
 import { api } from '../../../lib/api'
 import { indianGreeting } from '../../../lib/time'
 import type { CaseListResponse, CaseStatus, Priority } from '../../../lib/types'
@@ -40,8 +43,18 @@ export default function PatientDashboard() {
   const [cases, setCases] = useState<CaseListResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const { i18n } = useTranslation()
   const [error, setError] = useState<string | null>(null)
-  const [greeting] = useState(() => indianGreeting())
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    // Keep clock and greeting fresh on mount and when language changes
+    setNow(new Date())
+    const timer = setInterval(() => setNow(new Date()), 30000)
+    return () => clearInterval(timer)
+  }, [i18n?.language])
+
+  const greeting = indianGreeting(now, i18n?.language)
 
   useEffect(() => {
     api<CaseListResponse>('/api/cases', { params: { page_size: 15 } })
@@ -77,7 +90,41 @@ export default function PatientDashboard() {
         </div>
       </div>
 
-      {/* Main Question & 3 Primary Intake Modes */}
+      {/* Featured AI Voice Intake Assistant — Sonam */}
+      <div className="relative overflow-hidden rounded-3xl border-2 border-teal-500 bg-gradient-to-r from-teal-900 via-teal-800 to-emerald-900 p-5 text-white shadow-xl shadow-teal-950/20 sm:p-6">
+        <div className="relative z-10 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full bg-teal-500/20 px-3 py-1 text-xs font-bold text-teal-200 border border-teal-400/30">
+              <span className="h-2 w-2 rounded-full bg-teal-400 animate-ping" />
+              <span>Sonam AI Healthcare Intake Assistant</span>
+            </div>
+            <h2 className="text-xl font-extrabold sm:text-2xl text-white">
+              Speak with Sonam in Hindi, Odia, or English
+            </h2>
+            <p className="text-xs text-teal-100/90 leading-relaxed sm:text-sm">
+              Sonam organizes your symptoms, duration, and vitals into a structured clinical note and delivers it straight to your doctor for review.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/app/patient/voice"
+              className="inline-flex items-center gap-2 rounded-xl bg-teal-400 px-4 py-2.5 text-xs font-extrabold text-teal-950 shadow-md transition hover:bg-teal-300 active:scale-95 sm:text-sm"
+            >
+              <Mic className="h-4 w-4" />
+              <span>Talk to Sonam Now</span>
+            </Link>
+            <Link
+              to="/app/patient/callback"
+              className="inline-flex items-center gap-2 rounded-xl border border-teal-300/40 bg-teal-800/60 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-teal-700 active:scale-95 sm:text-sm"
+            >
+              <PhoneCall className="h-4 w-4 text-teal-200" />
+              <span>Get a Phone Call</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Question & 4 Primary Intake Modes */}
       <div>
         <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
           How would you like to share your health information?
@@ -86,30 +133,62 @@ export default function PatientDashboard() {
           Select your preferred method. All responses are summarized for authorized healthcare review.
         </p>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Card 1: Talk to AI (Voice) */}
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Card 1: Talk to Sonam (Website Voice Chat) */}
           <Link
             to="/app/patient/voice"
-            className="group relative flex flex-col justify-between rounded-2xl border-2 border-teal-200 bg-gradient-to-b from-teal-50/60 to-white p-4 transition hover:border-teal-500 hover:shadow-lg hover:shadow-teal-100 sm:p-5"
+            className="group relative flex flex-col justify-between rounded-2xl border-2 border-teal-300 bg-gradient-to-b from-teal-50 via-teal-50/40 to-white p-4 transition hover:border-teal-600 hover:shadow-lg hover:shadow-teal-100 sm:p-5"
           >
             <div>
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-md shadow-teal-600/30 group-hover:scale-105 transition-transform">
                 <Mic className="h-6 w-6" />
               </span>
-              <h3 className="mt-4 text-base font-bold text-slate-900 group-hover:text-teal-700">
-                🎙️ Talk to AI
-              </h3>
+              <div className="mt-4 flex items-center gap-1.5">
+                <h3 className="text-base font-bold text-slate-900 group-hover:text-teal-700">
+                  🎙️ Talk to Sonam
+                </h3>
+                <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-800">
+                  Live Voice
+                </span>
+              </div>
               <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
-                Speak directly in Hindi, Odia, or English. AI listens, clarifies symptoms, and formats a triage note.
+                Speak directly in Hindi, Odia, or English. Sonam listens, clarifies symptoms, and sends notes straight to the doctor.
               </p>
             </div>
             <div className="mt-5 flex items-center gap-1.5 text-xs font-semibold text-teal-700">
-              <span>Start Voice Session</span>
+              <span>Start Voice Intake</span>
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
             </div>
           </Link>
 
-          {/* Card 2: Chat with AI */}
+          {/* Card 2: Get a Phone Call (Outbound Callback) */}
+          <Link
+            to="/app/patient/callback"
+            className="group relative flex flex-col justify-between rounded-2xl border-2 border-blue-200 bg-gradient-to-b from-blue-50/60 to-white p-4 transition hover:border-blue-500 hover:shadow-lg hover:shadow-blue-100 sm:p-5"
+          >
+            <div>
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-600/30 group-hover:scale-105 transition-transform">
+                <PhoneCall className="h-6 w-6" />
+              </span>
+              <div className="mt-4 flex items-center gap-1.5">
+                <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-700">
+                  📞 Phone Callback
+                </h3>
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+                  Tele-triage
+                </span>
+              </div>
+              <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                Enter your mobile number to get a telephone call from Sonam. She records your answers for doctor review.
+              </p>
+            </div>
+            <div className="mt-5 flex items-center gap-1.5 text-xs font-semibold text-blue-700">
+              <span>Request Phone Call</span>
+              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+            </div>
+          </Link>
+
+          {/* Card 3: Chat with AI */}
           <Link
             to="/app/patient/new"
             className="group relative flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-400 hover:shadow-md sm:p-5"
@@ -131,7 +210,7 @@ export default function PatientDashboard() {
             </div>
           </Link>
 
-          {/* Card 3: Upload Report */}
+          {/* Card 4: Upload Report */}
           <Link
             to="/app/patient/uploads"
             className="group relative flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-400 hover:shadow-md sm:p-5"
@@ -269,6 +348,9 @@ export default function PatientDashboard() {
           </div>
         )}
       </div>
+
+      {/* Floating Sonam Voice Assistant Drawer */}
+      <SonamFloatingAssistant />
     </div>
   )
 }

@@ -62,3 +62,4 @@ class VoiceTurnResponse(BaseModel):
     added_measurement: bool
     provider: str
     diagnostics: dict | None = None
+    transcript: str | None = None

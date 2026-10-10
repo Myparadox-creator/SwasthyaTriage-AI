@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from models.enums import CallStatus, MessageRole
 
@@ -66,3 +67,61 @@ class TeleCallOut(BaseModel):
 class TeleCallListResponse(BaseModel):
     items: list[TeleCallOut]
     total: int
+
+
+# --- Patient-facing callback requests (Sonam) ---
+
+
+class CallbackRequestCreate(BaseModel):
+    """Patient-initiated request for an outbound Sonam callback."""
+
+    phone_number: str = Field(min_length=5, max_length=32)
+    language: Literal["en", "hi", "od"] = "hi"
+    purpose: str | None = Field(
+        default="Patient requested a Sonam callback for health information",
+        max_length=500,
+    )
+    consent_ai: bool = False
+
+    @model_validator(mode="after")
+    def _require_explicit_consent(self):
+        if not self.consent_ai:
+            raise ValueError(
+                "Consent is required before an AI assistant may call you"
+            )
+        if not self.phone_number.strip():
+            raise ValueError("phone_number is required")
+        return self
+
+
+class CallbackRequestOut(BaseModel):
+    """Truthful callback status. Never claims a call was placed unless it was."""
+
+    id: int
+    public_id: str
+    case_id: int
+    case_number: str | None = None
+    status: CallStatus
+    provider: str
+    mode: str
+    phone_masked: str
+    language: str
+    purpose: str | None = None
+    consent_ai: bool = True
+    message: str
+    created_at: datetime
+
+
+class CallbackListResponse(BaseModel):
+    items: list[CallbackRequestOut]
+    total: int
+
+
+class TeleCallWebhookPayload(BaseModel):
+    """Provider call-status callback body."""
+
+    call_public_id: str | None = None
+    external_call_id: str | None = None
+    status: CallStatus
+    error_detail: str | None = None
+    duration_seconds: int | None = None
