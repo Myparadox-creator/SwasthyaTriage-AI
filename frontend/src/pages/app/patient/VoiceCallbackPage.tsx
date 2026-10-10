@@ -14,7 +14,7 @@ import {
   ShieldAlert,
   Sparkles,
 } from 'lucide-react'
-import { api } from '../../../lib/api'
+import { api, ApiError } from '../../../lib/api'
 import { useAuthStore } from '../../../stores/auth'
 import { submitSnapServeLead } from '../../../lib/snapserve'
 import type { CallbackListResponse, CallbackRequestOut, CallStatus } from '../../../lib/types'
@@ -73,6 +73,9 @@ const STATUS_CONFIG: Record<
   },
 }
 
+// A request the patient can still withdraw before the call is answered.
+const CANCELLABLE_STATUSES: CallStatus[] = ['REQUESTED', 'DIALING', 'RINGING']
+
 export default function VoiceCallbackPage() {
   const user = useAuthStore((s) => s.user)!
   const [phoneNumber, setPhoneNumber] = useState(user.phone || '')
@@ -82,7 +85,9 @@ export default function VoiceCallbackPage() {
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitConflict, setSubmitConflict] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState<CallbackRequestOut | null>(null)
+  const [cancellingId, setCancellingId] = useState<number | null>(null)
 
   const [recentCalls, setRecentCalls] = useState<CallbackRequestOut[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
@@ -103,9 +108,38 @@ export default function VoiceCallbackPage() {
     void loadHistory()
   }, [])
 
+  const handleCancel = async (id: number) => {
+    setCancellingId(id)
+    setSubmitError(null)
+    try {
+      await api<CallbackRequestOut>(`/api/patients/callback-requests/${id}/cancel`, {
+        method: 'POST',
+      })
+      setSubmitConflict(false)
+      await loadHistory()
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : 'Could not cancel the request. Please try again.'
+      )
+    } finally {
+      setCancellingId(null)
+    }
+  }
+
+  // When a queued request blocks a new one, let the patient withdraw it and retry.
+  const cancelBlockingAndRetry = async () => {
+    const active = recentCalls.find((c) => CANCELLABLE_STATUSES.includes(c.status))
+    if (!active) {
+      await loadHistory()
+      return
+    }
+    await handleCancel(active.id)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitError(null)
+    setSubmitConflict(false)
 
     if (!consentAi) {
       setSubmitError('Please agree to receive the AI call before submitting.')
@@ -144,6 +178,9 @@ export default function VoiceCallbackPage() {
       // Refresh recent calls list
       void loadHistory()
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'callback_already_queued') {
+        setSubmitConflict(true)
+      }
       setSubmitError(
         err instanceof Error ? err.message : 'Unable to schedule callback. Please try again shortly.'
       )
@@ -251,9 +288,26 @@ export default function VoiceCallbackPage() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             {submitError && (
-              <div className="flex items-start gap-2.5 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs text-red-800">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
-                <span>{submitError}</span>
+              <div className="flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs text-red-800">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                  <span>{submitError}</span>
+                </div>
+                {submitConflict && (
+                  <button
+                    type="button"
+                    onClick={() => void cancelBlockingAndRetry()}
+                    disabled={cancellingId !== null}
+                    className="inline-flex items-center justify-center gap-2 self-start rounded-xl border border-red-300 bg-white px-3.5 py-2 font-semibold text-red-700 shadow-xs transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {cancellingId !== null ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <PhoneOff className="h-3.5 w-3.5" />
+                    )}
+                    <span>Cancel the queued request &amp; try again</span>
+                  </button>
+                )}
               </div>
             )}
 
@@ -433,8 +487,25 @@ export default function VoiceCallbackPage() {
                         </p>
                       )}
                     </div>
-                    <div className="shrink-0 text-[11px] text-slate-400">
-                      {new Date(call.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+                      {CANCELLABLE_STATUSES.includes(call.status) && (
+                        <button
+                          type="button"
+                          onClick={() => void handleCancel(call.id)}
+                          disabled={cancellingId !== null}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {cancellingId === call.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <PhoneOff className="h-3 w-3" />
+                          )}
+                          <span>Cancel</span>
+                        </button>
+                      )}
+                      <span className="text-[11px] text-slate-400">
+                        {new Date(call.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
                     </div>
                   </div>
                 )

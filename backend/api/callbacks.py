@@ -59,6 +59,18 @@ _ACTIVE_STATUSES = (
     CallStatus.CONNECTED,
 )
 
+# A patient may cancel a request that has not yet reached a conversation.
+_CANCELLABLE_STATUSES = (
+    CallStatus.REQUESTED,
+    CallStatus.DIALING,
+    CallStatus.RINGING,
+)
+
+# In simulated (non-live) mode nothing is actually dialed, so a queued request
+# must not lock the patient out forever. Only a request newer than this window
+# is treated as blocking; older simulated requests are considered stale.
+_SIMULATED_ACTIVE_TTL_MINUTES = 10
+
 # Question bank the telephony agent will ask during a patient-requested callback.
 CALLBACK_QUESTIONS = [
     "temperature",
@@ -170,7 +182,7 @@ def _enforce_limits(db: Session, patient_id: int, phone: str) -> None:
     """Cooldown + daily cap + active-call de-duplication, all scoped to this patient."""
     now = datetime.now(UTC)
 
-    active = db.scalar(
+    active_stmt = (
         select(func.count(TeleCall.id))
         .join(Case, TeleCall.case_id == Case.id)
         .where(
@@ -178,6 +190,13 @@ def _enforce_limits(db: Session, patient_id: int, phone: str) -> None:
             TeleCall.status.in_(_ACTIVE_STATUSES),
         )
     )
+    if not settings.telephony_live:
+        # Simulated requests never progress on their own, so only a recent one
+        # blocks a fresh request rather than any stale queued entry.
+        active_stmt = active_stmt.where(
+            TeleCall.created_at >= now - timedelta(minutes=_SIMULATED_ACTIVE_TTL_MINUTES)
+        )
+    active = db.scalar(active_stmt)
     if active:
         raise AppError(
             "You already have a call queued. Please wait for it to complete "
@@ -395,6 +414,48 @@ def get_callback_request(
         raise NotFoundError("Callback request not found")
 
     case = db.get(Case, call.case_id)
+    return _to_out(
+        call,
+        case=case,
+        mode=settings.callback_mode,
+        message=_status_message(call),
+    )
+
+
+@router.post("/{call_id}/cancel", response_model=CallbackRequestOut)
+def cancel_callback_request(
+    call_id: int,
+    user: User = Depends(require_roles(Role.PATIENT)),
+    db: Session = Depends(get_db),
+):
+    """Cancel a patient's own pending callback so they can request a fresh one."""
+    patient = _get_patient(db, user)
+    call = db.scalar(_patient_calls(db, patient.id).where(TeleCall.id == call_id))
+    if call is None:
+        raise NotFoundError("Callback request not found")
+
+    if call.status not in _CANCELLABLE_STATUSES:
+        raise AppError(
+            "This callback request can no longer be cancelled.",
+            status_code=409,
+            code="callback_not_cancellable",
+        )
+
+    previous_status = call.status
+    call.status = CallStatus.CANCELLED
+    case = db.get(Case, call.case_id)
+    record_audit(
+        db,
+        AuditAction.TELECALL_CANCELLED,
+        user=user,
+        case=case,
+        metadata={
+            "telecall_id": call.public_id,
+            "previous_status": previous_status.value,
+        },
+    )
+    db.commit()
+    db.refresh(call)
     return _to_out(
         call,
         case=case,
