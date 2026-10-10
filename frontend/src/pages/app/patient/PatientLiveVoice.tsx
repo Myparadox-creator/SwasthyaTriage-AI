@@ -37,6 +37,7 @@ export default function PatientLiveVoice() {
   const controllerRef = useRef<LiveVoiceController | null>(null)
   const patientBufRef = useRef('')
   const sonamBufRef = useRef('')
+  const endingRef = useRef(false)
 
   useEffect(() => {
     return () => {
@@ -65,6 +66,7 @@ export default function PatientLiveVoice() {
     setStatus('connecting')
     setErrorMsg(null)
     setTurns([])
+    endingRef.current = false
     patientBufRef.current = ''
     sonamBufRef.current = ''
     try {
@@ -95,6 +97,11 @@ export default function PatientLiveVoice() {
             setStatus(next)
             if (next === 'listening' || next === 'speaking' || next === 'ready') {
               setPhase('live')
+            } else if (next === 'closed' && !endingRef.current) {
+              setPhase('error')
+              setErrorMsg(
+                'The realtime call ended unexpectedly. You can retry, or continue with turn-based voice.'
+              )
             }
           },
           onInputTranscript: (fragment) => {
@@ -121,6 +128,7 @@ export default function PatientLiveVoice() {
 
   const finalizeCase = async (): Promise<void> => {
     if (!caseDetail) return
+    endingRef.current = true
     controllerRef.current?.end()
     flushTurn()
     if (session) {
@@ -155,6 +163,7 @@ export default function PatientLiveVoice() {
       navigate('/app/patient/dashboard')
       return
     }
+    endingRef.current = true
     controllerRef.current?.end()
     flushTurn()
     if (session) {

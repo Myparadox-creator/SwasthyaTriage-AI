@@ -571,37 +571,57 @@ async def _run_live_session(
             except Exception as exc:  # noqa: BLE001
                 logger.debug("Live client pump ended: %s", exc)
 
+        async def handle_gemini_message(message) -> None:
+            content = getattr(message, "server_content", None)
+            if content is None:
+                return
+            if getattr(content, "interrupted", False):
+                await websocket.send_json({"type": "interrupted"})
+            input_tr = getattr(content, "input_transcription", None)
+            if input_tr is not None and getattr(input_tr, "text", None):
+                buffers["user"].append(input_tr.text)
+                await websocket.send_json({"type": "input", "text": input_tr.text})
+            output_tr = getattr(content, "output_transcription", None)
+            if output_tr is not None and getattr(output_tr, "text", None):
+                buffers["ai"].append(output_tr.text)
+                await websocket.send_json({"type": "output", "text": output_tr.text})
+            model_turn = getattr(content, "model_turn", None)
+            if model_turn is not None:
+                for part in model_turn.parts or []:
+                    inline = getattr(part, "inline_data", None)
+                    data = getattr(inline, "data", None)
+                    if data:
+                        await websocket.send_bytes(data)
+            if getattr(content, "turn_complete", False):
+                flush_turn()
+                await websocket.send_json({"type": "turn_complete"})
+
         async def pump_gemini() -> None:
-            async for message in stream.receive():
-                content = getattr(message, "server_content", None)
-                if content is None:
-                    continue
-                if getattr(content, "interrupted", False):
-                    await websocket.send_json({"type": "interrupted"})
-                input_tr = getattr(content, "input_transcription", None)
-                if input_tr is not None and getattr(input_tr, "text", None):
-                    buffers["user"].append(input_tr.text)
-                    await websocket.send_json({"type": "input", "text": input_tr.text})
-                output_tr = getattr(content, "output_transcription", None)
-                if output_tr is not None and getattr(output_tr, "text", None):
-                    buffers["ai"].append(output_tr.text)
-                    await websocket.send_json({"type": "output", "text": output_tr.text})
-                model_turn = getattr(content, "model_turn", None)
-                if model_turn is not None:
-                    for part in model_turn.parts or []:
-                        inline = getattr(part, "inline_data", None)
-                        data = getattr(inline, "data", None)
-                        if data:
-                            await websocket.send_bytes(data)
-                if getattr(content, "turn_complete", False):
-                    flush_turn()
-                    await websocket.send_json({"type": "turn_complete"})
+            # ``stream.receive()`` yields exactly one model turn and then returns,
+            # so re-enter it after every turn to keep the full-duplex call alive
+            # until the client disconnects or the Gemini Live socket actually closes.
+            while True:
+                try:
+                    async for message in stream.receive():
+                        await handle_gemini_message(message)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("Gemini Live receive loop ended: %s", exc)
+                    break
 
         client_task = asyncio.create_task(pump_client())
         server_task = asyncio.create_task(pump_gemini())
-        _, pending = await asyncio.wait(
+        done, pending = await asyncio.wait(
             {client_task, server_task}, return_when=asyncio.FIRST_COMPLETED
         )
+        # If the Gemini side ended while the caller was still connected, tell the
+        # client so it can offer the turn-based fallback instead of a silent hang-up.
+        if server_task in done and client_task in pending:
+            try:
+                await websocket.send_json({"type": "error", "error": "live_session_ended"})
+            except Exception:  # noqa: BLE001
+                pass
         for task in pending:
             task.cancel()
         await asyncio.gather(*pending, return_exceptions=True)

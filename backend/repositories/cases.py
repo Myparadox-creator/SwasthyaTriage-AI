@@ -98,8 +98,10 @@ def list_cases(
             joinedload(Case.safety_signals),
         )
         .order_by(
-            # Urgent first, then most recent
-            (Case.priority == Priority.URGENT_REVIEW).desc(),
+            # Cases already submitted for review surface above in-progress drafts,
+            # then newest submissions first (urgent remains flagged via badge/filter).
+            (Case.status == CaseStatus.DRAFT).asc(),
+            func.coalesce(Case.submitted_at, Case.created_at).desc(),
             Case.created_at.desc(),
         )
         .offset(max(page - 1, 0) * page_size)

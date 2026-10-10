@@ -88,6 +88,7 @@ export function startLiveVoice(
   let nextPlayTime = 0
   const liveSources = new Set<AudioBufferSourceNode>()
   let closed = false
+  let serverClosed = false
 
   const stopPlayback = () => {
     for (const src of liveSources) {
@@ -187,7 +188,15 @@ export function startLiveVoice(
       }
       switch (msg.type) {
         case 'ready':
-          void setupAudio().then(() => setStatus('listening'))
+          void setupAudio()
+            .then(() => setStatus('listening'))
+            .catch((err) => {
+              setStatus('error')
+              events.onError?.(
+                'Microphone access is required for realtime voice. ' +
+                  (err instanceof Error ? err.message : 'Please allow mic access and retry.')
+              )
+            })
           break
         case 'input':
           if (msg.text) events.onInputTranscript?.(msg.text)
@@ -207,10 +216,13 @@ export function startLiveVoice(
           events.onError?.(
             msg.error === 'live_unavailable'
               ? 'Realtime voice is not configured on the server.'
+              : msg.error === 'live_session_ended'
+              ? 'The realtime call ended early. You can retry, or continue with turn-based voice.'
               : `Realtime voice error: ${msg.error || 'unknown'}`
           )
           break
         case 'closed':
+          serverClosed = true
           setStatus('closed')
           break
         default:
@@ -229,7 +241,14 @@ export function startLiveVoice(
   }
 
   ws.onclose = () => {
-    if (!closed) setStatus('closed')
+    if (!closed) {
+      if (serverClosed) {
+        setStatus('closed')
+      } else {
+        setStatus('error')
+        events.onError?.('Realtime voice connection closed unexpectedly. Please try again.')
+      }
+    }
     void teardownAudio()
   }
 
