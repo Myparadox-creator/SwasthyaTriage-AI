@@ -180,12 +180,53 @@ def update_facility(
     if fac is None:
         raise NotFoundError("Facility not found")
 
-    for field, val in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    for field, val in changes.items():
         setattr(fac, field, val)
 
+    record_audit(
+        db,
+        AuditAction.FACILITY_UPDATED,
+        user=user,
+        facility_id=fac.id,
+        metadata={"facility_code": fac.code, "changed_fields": sorted(changes.keys())},
+    )
     db.commit()
     db.refresh(fac)
     return fac
+
+
+@router.delete("/facilities/{facility_id}", status_code=204)
+def delete_facility(
+    facility_id: int,
+    user: User = Depends(require_roles(Role.SUPER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    fac = db.get(Facility, facility_id)
+    if fac is None:
+        raise NotFoundError("Facility not found")
+
+    assigned_users = db.scalar(
+        select(func.count(User.id)).where(User.facility_id == facility_id, User.deleted_at.is_(None))
+    )
+    assigned_cases = db.scalar(select(func.count(Case.id)).where(Case.facility_id == facility_id))
+    if (assigned_users or 0) > 0 or (assigned_cases or 0) > 0:
+        raise AppError(
+            "Facility has assigned users or cases; deactivate it instead of deleting.",
+            status_code=409,
+            code="facility_in_use",
+        )
+
+    record_audit(
+        db,
+        AuditAction.FACILITY_DELETED,
+        user=user,
+        facility_id=fac.id,
+        metadata={"facility_code": fac.code, "name": fac.name},
+    )
+    db.delete(fac)
+    db.commit()
+    return None
 
 
 # ----------------------------------------------------
@@ -242,6 +283,15 @@ def create_staff_user(
         if payload.role not in (Role.HEALTHCARE_WORKER, Role.FACILITY_ADMIN):
             raise ForbiddenError("Facility admins can only create health staff or facility accounts")
 
+    if payload.role in (Role.HEALTHCARE_WORKER, Role.FACILITY_ADMIN) and target_facility_id is None:
+        raise AppError(
+            "A facility must be assigned for clinical and facility-admin roles",
+            status_code=400,
+            code="facility_required",
+        )
+    if target_facility_id is not None and db.get(Facility, target_facility_id) is None:
+        raise NotFoundError("Facility not found")
+
     new_user = User(
         email=payload.email.lower().strip(),
         full_name=payload.full_name.strip(),
@@ -295,11 +345,26 @@ def update_user(
     if user.role != Role.SUPER_ADMIN and target.facility_id != user.facility_id:
         raise ForbiddenError("Cannot modify user from another facility")
 
-    for field, val in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    if changes.get("is_active") is False and target.id == user.id:
+        raise AppError("You cannot deactivate your own account", status_code=400, code="cannot_deactivate_self")
+    if user.role != Role.SUPER_ADMIN and target.role == Role.SUPER_ADMIN:
+        raise ForbiddenError("Cannot modify a super administrator")
+
+    applied: list[str] = []
+    for field, val in changes.items():
         if user.role != Role.SUPER_ADMIN and field in ("role", "facility_id"):
             continue  # only super admin can modify role or facility reassignments
         setattr(target, field, val)
+        applied.append(field)
 
+    record_audit(
+        db,
+        AuditAction.USER_UPDATED,
+        user=user,
+        facility_id=target.facility_id,
+        metadata={"target_user_id": target.id, "email": target.email, "changed_fields": sorted(applied)},
+    )
     db.commit()
     db.refresh(target)
 
@@ -317,6 +382,36 @@ def update_user(
         last_login_at=target.last_login_at,
         created_at=target.created_at,
     )
+
+
+@router.delete("/users/{user_id}", status_code=204)
+def delete_user(
+    user_id: int,
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+    db: Session = Depends(get_db),
+):
+    target = db.get(User, user_id)
+    if target is None or target.deleted_at is not None:
+        raise NotFoundError("User not found")
+
+    if target.id == user.id:
+        raise AppError("You cannot delete your own account", status_code=400, code="cannot_delete_self")
+
+    if user.role != Role.SUPER_ADMIN:
+        if target.facility_id != user.facility_id or target.role == Role.SUPER_ADMIN:
+            raise ForbiddenError("Cannot remove this user")
+
+    target.is_active = False
+    target.deleted_at = datetime.now(UTC)
+    record_audit(
+        db,
+        AuditAction.USER_DELETED,
+        user=user,
+        facility_id=target.facility_id,
+        metadata={"target_user_id": target.id, "email": target.email, "role": target.role.value},
+    )
+    db.commit()
+    return None
 
 
 # ----------------------------------------------------

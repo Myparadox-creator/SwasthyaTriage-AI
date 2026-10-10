@@ -53,6 +53,13 @@ class VoiceTurnRequest(BaseModel):
         return self
 
 
+class VoiceSpeakRequest(BaseModel):
+    """Request to synthesize agent speech (server-side TTS)."""
+
+    text: str = Field(min_length=1, max_length=2000)
+    language: str | None = Field(default=None, max_length=8)
+
+
 class VoiceTurnResponse(BaseModel):
     reply: str
     status: SessionStatus

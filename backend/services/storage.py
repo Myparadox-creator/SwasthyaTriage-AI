@@ -7,12 +7,16 @@ at read time and is guaranteed to stay inside the storage root.
 
 from __future__ import annotations
 
+import logging
+import tempfile
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
 from config import settings
 from middleware.errors import AppError
+
+logger = logging.getLogger("swasthyatriage.storage")
 
 # accepted content types: {content_type: (allowed extensions, magic bytes)}
 ALLOWED_UPLOADS: dict[str, tuple[tuple[str, ...], bytes]] = {
@@ -83,22 +87,93 @@ def validate_upload(filename: str, content_type: str | None, data: bytes) -> str
     return ctype
 
 
+def _s3_client():
+    """Return a boto3 S3 client when the s3 backend is configured, else None.
+
+    Gracefully degrades to local disk (with a warning) when boto3 is missing,
+    so a misconfigured deployment still accepts uploads instead of erroring.
+    """
+    if (settings.storage_backend or "local").lower() != "s3":
+        return None
+    try:
+        import boto3
+    except ImportError:  # pragma: no cover - depends on deployment
+        logger.warning(
+            "STORAGE_BACKEND=s3 but boto3 is not installed; falling back to local disk storage"
+        )
+        return None
+    if not settings.s3_bucket:
+        logger.warning("STORAGE_BACKEND=s3 but S3_BUCKET is empty; falling back to local disk")
+        return None
+    kwargs: dict = {"region_name": settings.s3_region or "us-east-1"}
+    if settings.s3_endpoint_url:
+        kwargs["endpoint_url"] = settings.s3_endpoint_url
+    if settings.s3_access_key_id:
+        kwargs["aws_access_key_id"] = settings.s3_access_key_id
+        kwargs["aws_secret_access_key"] = settings.s3_secret_access_key
+    return boto3.client("s3", **kwargs)
+
+
+def storage_backend_active() -> str:
+    return "s3" if _s3_client() is not None else "local"
+
+
+def _object_key(rel: str) -> str:
+    prefix = (settings.s3_prefix or "").strip("/")
+    return f"{prefix}/{rel}" if prefix else rel
+
+
 def save_upload(data: bytes, filename: str) -> str:
-    """Persist an upload under the storage root. Returns the relative key."""
+    """Persist an upload. Returns the storage key (local path or object key)."""
     now = datetime.now(UTC)
     year, month = now.strftime("%Y"), now.strftime("%m")
     ext = Path(filename).suffix.lower() or ".bin"
-    rel = Path("uploads") / year / month / f"{uuid.uuid4().hex}{ext}"
+    rel = (Path("uploads") / year / month / f"{uuid.uuid4().hex}{ext}").as_posix()
+
+    client = _s3_client()
+    if client is not None:
+        client.put_object(Bucket=settings.s3_bucket, Key=_object_key(rel), Body=data)
+        return rel
+
     target = settings.storage_root / rel
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
-    return rel.as_posix()
+    return rel
 
 
 def resolve_storage_path(key: str) -> Path:
-    """Resolve a stored key to an absolute path, rejecting path traversal."""
+    """Resolve a stored key to an absolute local path, rejecting path traversal."""
     root = settings.storage_root.resolve()
     candidate = (root / key).resolve()
     if not candidate.is_relative_to(root):
         raise AppError("Invalid storage path", status_code=500, code="invalid_storage_path")
     return candidate
+
+
+def materialize_upload(key: str) -> Path:
+    """Return a readable local path for a stored key.
+
+    Local backend returns the on-disk path directly. The s3 backend downloads
+    the object to a temporary file so callers that need a Path (e.g. PDF text
+    extraction) work unchanged.
+    """
+    client = _s3_client()
+    if client is None:
+        return resolve_storage_path(key)
+    body = client.get_object(Bucket=settings.s3_bucket, Key=_object_key(key))["Body"].read()
+    suffix = Path(key).suffix or ".bin"
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    try:
+        tmp.write(body)
+    finally:
+        tmp.close()
+    return Path(tmp.name)
+
+
+def read_upload_bytes(key: str) -> bytes:
+    """Read an upload's bytes from whichever backend is active."""
+    client = _s3_client()
+    if client is None:
+        return resolve_storage_path(key).read_bytes()
+    return client.get_object(Bucket=settings.s3_bucket, Key=_object_key(key))["Body"].read()
+

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
-from types import SimpleNamespace
 
 import main
 from database.session import SessionLocal

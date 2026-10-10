@@ -8,7 +8,6 @@ Synthetic clinical narratives strictly adhering to public health scenarios.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass

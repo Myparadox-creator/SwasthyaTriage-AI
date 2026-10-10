@@ -152,7 +152,6 @@ def estimate_measurement_confidence(
 
     clean_name = name.strip()
     clean_val = value.strip()
-    query = f"{clean_name} {clean_val}"
     evidence = _find_evidence_quote(clean_val, context_text) or _find_evidence_quote(clean_name, context_text)
 
     if evidence:

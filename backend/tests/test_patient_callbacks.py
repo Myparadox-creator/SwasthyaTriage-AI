@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -176,7 +177,7 @@ def test_telephony_webhook_signature_verification(client: TestClient):
         assert create_res.status_code == 201
         call_public_id = create_res.json()["public_id"]
 
-        payload_bytes = f'{{"call_public_id":"{call_public_id}","status":"CONNECTED"}}'.encode("utf-8")
+        payload_bytes = f'{{"call_public_id":"{call_public_id}","status":"CONNECTED"}}'.encode()
         valid_sig = hmac.new(b"test-webhook-secret-key-12345", payload_bytes, hashlib.sha256).hexdigest()
 
         # 1. Invalid signature should be rejected with 401

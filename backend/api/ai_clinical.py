@@ -17,7 +17,10 @@ from database.session import get_db
 from models import User
 from models.enums import Role
 from repositories.cases import get_case_or_403
-from services.clinical_nlp.confidence import estimate_measurement_confidence, estimate_symptom_confidence
+from services.clinical_nlp.confidence import (
+    estimate_measurement_confidence,
+    estimate_symptom_confidence,
+)
 from services.clinical_nlp.contradictions import detect_cross_modal_contradictions
 from services.clinical_nlp.missing_info import detect_syndrome_missing_info
 from services.longitudinal.summarizer import build_longitudinal_trajectory

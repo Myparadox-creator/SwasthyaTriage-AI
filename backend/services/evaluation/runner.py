@@ -10,7 +10,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from services.clinical_nlp.confidence import estimate_measurement_confidence, estimate_symptom_confidence
+from services.clinical_nlp.confidence import (
+    estimate_symptom_confidence,
+)
 from services.evaluation.benchmark_data import BENCHMARK_CASES
 from services.evaluation.history import (
     CONFIG_VERSION,

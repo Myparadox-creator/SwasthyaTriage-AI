@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import base64
 import sys
 
 from config import settings
 from services.gemini.client import GeminiClient
-from services.voice.agent import GeminiVoiceAgent, MockVoiceAgent, get_voice_agent
+from services.voice.agent import GeminiVoiceAgent
 
-print(f"=== SWASTHYATRIAGE AI VERIFICATION ===")
+print("=== SWASTHYATRIAGE AI VERIFICATION ===")
 print(f"Python: {sys.version.split()[0]}")
 print(f"Gemini Enabled: {settings.gemini_enabled}")
 print(f"Gemini Model: {settings.gemini_model}")

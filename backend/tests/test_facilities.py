@@ -1,7 +1,6 @@
 """Tests for Healthcare Facilities Search API endpoint (/api/facilities/search)."""
 
 from fastapi.testclient import TestClient
-import pytest
 
 from main import app
 

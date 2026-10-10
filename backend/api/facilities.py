@@ -12,8 +12,8 @@ import math
 import re
 from typing import Any
 
-from fastapi import APIRouter, Query
 import httpx
+from fastapi import APIRouter, Query
 
 logger = logging.getLogger("swasthyatriage.facilities")
 

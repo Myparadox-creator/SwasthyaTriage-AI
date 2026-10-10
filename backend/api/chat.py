@@ -6,6 +6,7 @@ import logging
 import uuid
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,9 +16,6 @@ from database.session import get_db
 from middleware.errors import AppError
 from models import Case, CaseSymptom, ChatMessage, ReviewNote, User
 from models.enums import CaseStatus, MessageRole, Priority, Role
-
-logger = logging.getLogger(__name__)
-from pydantic import BaseModel, Field
 from repositories.cases import get_case_or_403
 from schemas.chat import (
     ChatHistoryResponse,
@@ -39,6 +37,8 @@ from services.intake.conversation import (
 from services.intake.fallback import extract_from_message
 from services.notifications import notify, notify_facility_staff
 from services.safety.service import reevaluate_case
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cases", tags=["chat"])
 

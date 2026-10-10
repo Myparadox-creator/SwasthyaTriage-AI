@@ -7,6 +7,8 @@ Questions come from the seeded question_bank; reply text is deterministic.
 from __future__ import annotations
 
 import re
+import time
+from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -82,10 +84,6 @@ def apply_extraction(db: Session, case: Case, extraction: Extraction, *, channel
     if extraction.severity and "severity" not in ctx:
         ctx["severity"] = extraction.severity
     return {"added_symptoms": added_symptoms, "added_measurement": added_measurement}
-
-
-import time
-from dataclasses import dataclass
 
 
 @dataclass

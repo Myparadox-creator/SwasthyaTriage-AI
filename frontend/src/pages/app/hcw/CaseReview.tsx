@@ -33,6 +33,7 @@ import type {
   ReviewNoteOut,
   ReviewOutcome,
   SOPGuidelinesResponse,
+  VoiceSessionOut,
 } from '../../../lib/types'
 import { PROVENANCE_BADGE } from './hcwMeta'
 import EvidenceLedger from './EvidenceLedger'
@@ -48,6 +49,7 @@ export default function CaseReview() {
   const caseIdNum = caseId && /^\d+$/.test(caseId) ? Number(caseId) : null
   const [caseData, setCaseData] = useState<CaseDetail | null>(null)
   const [messages, setMessages] = useState<ChatMessageOut[] | null>(null)
+  const [voiceSessions, setVoiceSessions] = useState<VoiceSessionOut[] | null>(null)
   const [notes, setNotes] = useState<ReviewNoteOut[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -85,6 +87,7 @@ export default function CaseReview() {
     api<ClinicalAnalysisResponse>(`/api/cases/${cid}/clinical-analysis`).then(setClinicalAnalysis).catch(() => null)
     api<SOPGuidelinesResponse>(`/api/cases/${cid}/sop-guidelines`).then(setSopGuidelines).catch(() => null)
     api<LongitudinalHistoryResponse>(`/api/cases/${cid}/longitudinal-history`).then(setLongitudinalData).catch(() => null)
+    api<VoiceSessionOut[]>(`/api/cases/${cid}/voice/sessions`).then(setVoiceSessions).catch(() => setVoiceSessions([]))
   }, [])
 
   useEffect(() => {
@@ -104,6 +107,9 @@ export default function CaseReview() {
         api<ClinicalAnalysisResponse>(`/api/cases/${caseIdNum}/clinical-analysis`).then((res) => active && setClinicalAnalysis(res)).catch(() => null)
         api<SOPGuidelinesResponse>(`/api/cases/${caseIdNum}/sop-guidelines`).then((res) => active && setSopGuidelines(res)).catch(() => null)
         api<LongitudinalHistoryResponse>(`/api/cases/${caseIdNum}/longitudinal-history`).then((res) => active && setLongitudinalData(res)).catch(() => null)
+        api<VoiceSessionOut[]>(`/api/cases/${caseIdNum}/voice/sessions`)
+          .then((res) => active && setVoiceSessions(res))
+          .catch(() => active && setVoiceSessions([]))
       })
       .catch((err) => {
         if (!active) return
@@ -367,6 +373,57 @@ export default function CaseReview() {
               </ol>
             )}
           </div>
+
+          {voiceSessions && voiceSessions.some((s) => s.messages.length > 0) && (
+            <div className="border-t border-slate-100 p-4">
+              <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <PhoneCall className="h-3.5 w-3.5" />
+                Voice intake transcript
+              </h3>
+              <div className="mt-2 space-y-3">
+                {voiceSessions
+                  .filter((s) => s.messages.length > 0)
+                  .map((s) => (
+                    <div key={s.public_id}>
+                      <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-500">
+                          {s.mode}
+                        </span>
+                        <span>{s.provider}</span>
+                        {s.started_at && <span>· {new Date(s.started_at).toLocaleString()}</span>}
+                      </div>
+                      <ol className="mt-1.5 max-h-96 space-y-2 overflow-y-auto pr-1">
+                        {s.messages.map((m) => (
+                          <li
+                            key={m.id}
+                            className={`flex ${m.role === 'PATIENT' ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div
+                              className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs shadow-sm ${
+                                m.role === 'PATIENT'
+                                  ? 'rounded-br-sm bg-brand-700 text-white'
+                                  : 'rounded-bl-sm border border-slate-200 bg-white text-slate-700'
+                              }`}
+                            >
+                              <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                              <div
+                                className={`mt-1 text-[10px] ${
+                                  m.role === 'PATIENT' ? 'text-white/60' : 'text-slate-400'
+                                }`}
+                              >
+                                {m.role === 'PATIENT'
+                                  ? t('patient.chat.you')
+                                  : t('patient.chat.assistant')}
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {d.documents.length > 0 && (
             <div className="border-t border-slate-100 p-4">

@@ -10,10 +10,13 @@ Every access is recorded in the audit log.
 
 from __future__ import annotations
 
+import io
+import xml.etree.ElementTree as ET
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Response, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,12 +25,8 @@ from auth.dependencies import get_current_user
 from config import settings
 from database.session import get_db
 from middleware.errors import NotFoundError
-import io
-import xml.etree.ElementTree as ET
-import zipfile
-
 from models import Document, DocumentExtraction, User
-from models.enums import DocumentStatus, ExtractionMethod, Provenance
+from models.enums import CaseSource, DocumentStatus, ExtractionMethod, Provenance
 from repositories.cases import get_case_or_403
 from schemas.documents import (
     DocumentListResponse,
@@ -45,7 +44,14 @@ from services.gemini import (
 from services.ocr.text import extract_pdf_text
 from services.rag.document_rag import query_case_documents_rag
 from services.safety.service import reevaluate_case
-from services.storage import resolve_storage_path, save_upload, validate_upload
+from services.storage import (
+    materialize_upload,
+    read_upload_bytes,
+    resolve_storage_path,
+    save_upload,
+    storage_backend_active,
+    validate_upload,
+)
 
 router = APIRouter(prefix="/api/cases", tags=["documents"])
 
@@ -64,6 +70,12 @@ def extract_docx_text(data: bytes) -> str:
 
 
 def _get_document_or_404(db: Session, case_id: int, document_id: int) -> Document:
+    """Fetch an active document, scoped to its case.
+
+    The query is always filtered by ``case_id``. A caller who can access one
+    case must never be able to read a document belonging to another case by
+    guessing its id.
+    """
     doc = db.scalar(
         select(Document).where(
             Document.id == document_id,
@@ -71,14 +83,6 @@ def _get_document_or_404(db: Session, case_id: int, document_id: int) -> Documen
             Document.deleted_at.is_(None),
         )
     )
-    if doc is None:
-        # Fallback check by document ID if still active
-        doc = db.scalar(
-            select(Document).where(
-                Document.id == document_id,
-                Document.deleted_at.is_(None),
-            )
-        )
     if doc is None:
         raise NotFoundError("Document not found")
     return doc
@@ -117,7 +121,7 @@ def upload_document(
     merged = False
 
     if ctype == "application/pdf":
-        text, error = extract_pdf_text(resolve_storage_path(rel))
+        text, error = extract_pdf_text(materialize_upload(rel))
     elif ctype in ("text/plain", "text/csv"):
         try:
             text = data.decode("utf-8", errors="replace")
@@ -192,6 +196,14 @@ def upload_document(
             reevaluate_case(
                 db, case, trigger="document", actor=user, extra_free_text=schema.free_text
             )
+
+    if doc.status == DocumentStatus.PROCESSED:
+        # Record that clinical facts entered this case through an uploaded
+        # document, so downstream views show the right provenance badge.
+        if case.source == CaseSource.CHAT:
+            case.source = CaseSource.DOCUMENT
+        elif case.source in (CaseSource.VOICE, CaseSource.TELECALL):
+            case.source = CaseSource.MIXED
 
     record_audit(
         db,
@@ -278,6 +290,17 @@ def download_document(
         metadata={"document_id": doc.id, "filename": doc.filename},
     )
     db.commit()
+
+    if storage_backend_active() == "s3":
+        try:
+            content = read_upload_bytes(doc.storage_path)
+        except Exception:
+            raise NotFoundError("File not found on storage") from None
+        return Response(
+            content=content,
+            media_type=doc.content_type,
+            headers={"Content-Disposition": f'inline; filename="{doc.filename}"'},
+        )
 
     path = resolve_storage_path(doc.storage_path)
     if not path.is_file():

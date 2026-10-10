@@ -9,7 +9,9 @@ import {
   HardDrive,
   Loader2,
   Mail,
+  Pencil,
   Plus,
+  Power,
   RefreshCw,
   RotateCw,
   ScrollText,
@@ -17,7 +19,9 @@ import {
   Server,
   ShieldAlert,
   Sparkles,
+  Trash2,
   TrendingUp,
+  UserPlus,
   Users,
 } from 'lucide-react'
 
@@ -150,6 +154,37 @@ export default function SuperAdminDashboard() {
   const [facPhone, setFacPhone] = useState('')
   const [submittingFac, setSubmittingFac] = useState(false)
 
+  // Edit Facility Modal
+  const [editFacility, setEditFacility] = useState<FacilityOut | null>(null)
+  const [efName, setEfName] = useState('')
+  const [efType, setEfType] = useState('PHC')
+  const [efState, setEfState] = useState('Odisha')
+  const [efDistrict, setEfDistrict] = useState('')
+  const [efAddress, setEfAddress] = useState('')
+  const [efPhone, setEfPhone] = useState('')
+  const [efActive, setEfActive] = useState(true)
+  const [savingFacility, setSavingFacility] = useState(false)
+
+  // Add User Modal
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false)
+  const [usrName, setUsrName] = useState('')
+  const [usrEmail, setUsrEmail] = useState('')
+  const [usrPassword, setUsrPassword] = useState('Swasthya@123')
+  const [usrRole, setUsrRole] = useState('HEALTHCARE_WORKER')
+  const [usrFacility, setUsrFacility] = useState<number | ''>('')
+  const [usrDesignation, setUsrDesignation] = useState('')
+  const [usrPhone, setUsrPhone] = useState('')
+  const [submittingUser, setSubmittingUser] = useState(false)
+
+  // Edit User Modal
+  const [editUser, setEditUser] = useState<StaffUserOut | null>(null)
+  const [euRole, setEuRole] = useState('HEALTHCARE_WORKER')
+  const [euFacility, setEuFacility] = useState<number | ''>('')
+  const [euDesignation, setEuDesignation] = useState('')
+  const [euPhone, setEuPhone] = useState('')
+  const [euActive, setEuActive] = useState(true)
+  const [savingUser, setSavingUser] = useState(false)
+
   const loadData = () => {
     setLoading(true)
     Promise.all([
@@ -225,6 +260,140 @@ export default function SuperAdminDashboard() {
       alert(err instanceof Error ? err.message : 'Failed to create facility')
     } finally {
       setSubmittingFac(false)
+    }
+  }
+
+  const openEditFacility = (f: FacilityOut) => {
+    setEditFacility(f)
+    setEfName(f.name)
+    setEfType(f.facility_type)
+    setEfState(f.state)
+    setEfDistrict(f.district)
+    setEfAddress(f.address ?? '')
+    setEfPhone(f.phone ?? '')
+    setEfActive(f.is_active)
+  }
+
+  const handleUpdateFacility = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editFacility) return
+    setSavingFacility(true)
+    try {
+      await api<FacilityOut>(`/api/admin/facilities/${editFacility.id}`, {
+        method: 'PATCH',
+        body: {
+          name: efName.trim(),
+          facility_type: efType,
+          state: efState.trim(),
+          district: efDistrict.trim(),
+          address: efAddress.trim() || null,
+          phone: efPhone.trim() || null,
+          is_active: efActive,
+        },
+      })
+      setEditFacility(null)
+      loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update facility')
+    } finally {
+      setSavingFacility(false)
+    }
+  }
+
+  const handleDeleteFacility = async (f: FacilityOut) => {
+    if (!window.confirm(`Delete facility "${f.name}" (${f.code})? This cannot be undone.`)) return
+    try {
+      await api(`/api/admin/facilities/${f.id}`, { method: 'DELETE' })
+      loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete facility')
+    }
+  }
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!usrEmail || !usrName || !usrPassword) return
+    setSubmittingUser(true)
+    try {
+      await api<StaffUserOut>('/api/admin/users', {
+        method: 'POST',
+        body: {
+          email: usrEmail.trim(),
+          full_name: usrName.trim(),
+          password: usrPassword,
+          role: usrRole,
+          facility_id: usrFacility === '' ? null : usrFacility,
+          designation: usrDesignation.trim() || null,
+          phone: usrPhone.trim() || null,
+        },
+      })
+      setIsAddUserOpen(false)
+      setUsrName('')
+      setUsrEmail('')
+      setUsrPassword('Swasthya@123')
+      setUsrDesignation('')
+      setUsrPhone('')
+      loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to create user')
+    } finally {
+      setSubmittingUser(false)
+    }
+  }
+
+  const openEditUser = (u: StaffUserOut) => {
+    setEditUser(u)
+    setEuRole(u.role)
+    setEuFacility(u.facility_id ?? '')
+    setEuDesignation(u.designation ?? '')
+    setEuPhone(u.phone ?? '')
+    setEuActive(u.is_active)
+  }
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editUser) return
+    setSavingUser(true)
+    try {
+      await api<StaffUserOut>(`/api/admin/users/${editUser.id}`, {
+        method: 'PATCH',
+        body: {
+          role: euRole,
+          facility_id: euFacility === '' ? null : euFacility,
+          designation: euDesignation.trim() || null,
+          phone: euPhone.trim() || null,
+          is_active: euActive,
+        },
+      })
+      setEditUser(null)
+      loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update user')
+    } finally {
+      setSavingUser(false)
+    }
+  }
+
+  const toggleUserActive = async (u: StaffUserOut) => {
+    try {
+      await api<StaffUserOut>(`/api/admin/users/${u.id}`, {
+        method: 'PATCH',
+        body: { is_active: !u.is_active },
+      })
+      loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update user status')
+    }
+  }
+
+  const handleDeleteUser = async (u: StaffUserOut) => {
+    if (!window.confirm(`Remove user "${u.full_name}" (${u.email})? Their access will be revoked immediately.`))
+      return
+    try {
+      await api(`/api/admin/users/${u.id}`, { method: 'DELETE' })
+      loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete user')
     }
   }
 
@@ -730,6 +899,7 @@ export default function SuperAdminDashboard() {
                   <th className="p-3">District & State</th>
                   <th className="p-3">Phone</th>
                   <th className="p-3">Status</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -745,12 +915,37 @@ export default function SuperAdminDashboard() {
                     <td className="p-3 text-slate-300">{f.district}, {f.state}</td>
                     <td className="p-3 text-slate-400">{f.phone || '--'}</td>
                     <td className="p-3">
-                      <span className="rounded-full bg-emerald-950 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                        Active
-                      </span>
+                      {f.is_active ? (
+                        <span className="rounded-full bg-emerald-950 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-800 border border-slate-600 px-2 py-0.5 text-[10px] font-bold text-slate-400">
+                          Inactive
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditFacility(f)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-2 py-1 text-[10px] font-semibold text-teal-300 hover:bg-slate-700"
+                        >
+                          <Pencil className="h-3 w-3" /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFacility(f)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-red-950/60 px-2 py-1 text-[10px] font-semibold text-red-300 hover:bg-red-900/60"
+                        >
+                          <Trash2 className="h-3 w-3" /> Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
-                ))}
+                ))
+                }
               </tbody>
             </table>
           </div>
@@ -760,11 +955,19 @@ export default function SuperAdminDashboard() {
       {/* TAB 3: PLATFORM USERS */}
       {activeTab === 'users' && (
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-white space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-base font-bold text-white">Platform Users Directory</h2>
               <p className="text-xs text-slate-400">Total accounts across all facilities: {users.length}</p>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsAddUserOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2 text-xs font-bold text-slate-950 shadow hover:bg-teal-400 shrink-0"
+            >
+              <UserPlus className="h-4 w-4" />
+              Add New User
+            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -776,6 +979,7 @@ export default function SuperAdminDashboard() {
                   <th className="p-3">System Role</th>
                   <th className="p-3">Assigned Facility</th>
                   <th className="p-3">Status</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -800,9 +1004,40 @@ export default function SuperAdminDashboard() {
                     </td>
                     <td className="p-3 text-slate-400">{u.facility_name || 'Global / Platform'}</td>
                     <td className="p-3">
-                      <span className="rounded-full bg-emerald-950 border border-emerald-500/30 px-2 py-0.5 text-[10px] text-emerald-400 font-bold">
-                        Active
-                      </span>
+                      {u.is_active ? (
+                        <span className="rounded-full bg-emerald-950 border border-emerald-500/30 px-2 py-0.5 text-[10px] text-emerald-400 font-bold">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-800 border border-slate-600 px-2 py-0.5 text-[10px] text-slate-400 font-bold">
+                          Inactive
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditUser(u)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-2 py-1 text-[10px] font-semibold text-teal-300 hover:bg-slate-700"
+                        >
+                          <Pencil className="h-3 w-3" /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleUserActive(u)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-2 py-1 text-[10px] font-semibold text-amber-300 hover:bg-slate-700"
+                        >
+                          <Power className="h-3 w-3" /> {u.is_active ? 'Disable' : 'Enable'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUser(u)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-red-950/60 px-2 py-1 text-[10px] font-semibold text-red-300 hover:bg-red-900/60"
+                        >
+                          <Trash2 className="h-3 w-3" /> Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1341,6 +1576,342 @@ export default function SuperAdminDashboard() {
               >
                 {submittingFac ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building className="h-4 w-4" />}
                 Save Facility
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* EDIT FACILITY MODAL */}
+      {editFacility && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={handleUpdateFacility}
+            className="w-full max-h-[90vh] overflow-y-auto max-w-md rounded-3xl bg-slate-900 border border-slate-700 p-4 sm:p-6 text-white shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Edit Facility · {editFacility.code}</h3>
+              <button
+                type="button"
+                onClick={() => setEditFacility(null)}
+                className="text-slate-400 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-300">Facility Name:</label>
+                <input
+                  type="text"
+                  required
+                  value={efName}
+                  onChange={(e) => setEfName(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-300">Facility Type:</label>
+                <select
+                  value={efType}
+                  onChange={(e) => setEfType(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                >
+                  <option value="PHC">Primary Health Centre (PHC)</option>
+                  <option value="CHC">Community Health Centre (CHC)</option>
+                  <option value="GOVERNMENT_HOSPITAL">Government Hospital</option>
+                  <option value="COMPANY_CLINIC">Company / Industrial Clinic</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-300">State:</label>
+                  <input
+                    type="text"
+                    value={efState}
+                    onChange={(e) => setEfState(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-300">District:</label>
+                  <input
+                    type="text"
+                    value={efDistrict}
+                    onChange={(e) => setEfDistrict(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="font-semibold text-slate-300">Address:</label>
+                <input
+                  type="text"
+                  value={efAddress}
+                  onChange={(e) => setEfAddress(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-300">Phone Number:</label>
+                <input
+                  type="text"
+                  value={efPhone}
+                  onChange={(e) => setEfPhone(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                />
+              </div>
+              <label className="flex items-center gap-2 font-semibold text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={efActive}
+                  onChange={(e) => setEfActive(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-teal-500"
+                />
+                Facility is active (accepting patients)
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditFacility(null)}
+                className="rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingFacility}
+                className="flex items-center gap-2 rounded-xl bg-teal-500 px-5 py-2.5 text-xs font-bold text-slate-950 shadow hover:bg-teal-400 disabled:opacity-50"
+              >
+                {savingFacility ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ADD USER MODAL */}
+      {isAddUserOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={handleCreateUser}
+            className="w-full max-h-[90vh] overflow-y-auto max-w-md rounded-3xl bg-slate-900 border border-slate-700 p-4 sm:p-6 text-white shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Add New Platform User</h3>
+              <button
+                type="button"
+                onClick={() => setIsAddUserOpen(false)}
+                className="text-slate-400 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-300">Full Name:</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Dr. Sasmita Mohanty"
+                  value={usrName}
+                  onChange={(e) => setUsrName(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-300">Email Address:</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="user@swasthyatriage.demo"
+                  value={usrEmail}
+                  onChange={(e) => setUsrEmail(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-300">Temporary Password:</label>
+                <input
+                  type="text"
+                  required
+                  value={usrPassword}
+                  onChange={(e) => setUsrPassword(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-300">System Role:</label>
+                <select
+                  value={usrRole}
+                  onChange={(e) => setUsrRole(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                >
+                  <option value="HEALTHCARE_WORKER">Healthcare Worker (Doctor / Nurse)</option>
+                  <option value="FACILITY_ADMIN">Facility Administrator</option>
+                  <option value="SUPER_ADMIN">Super Administrator (State Directorate)</option>
+                </select>
+              </div>
+              {usrRole !== 'SUPER_ADMIN' && (
+                <div>
+                  <label className="font-semibold text-slate-300">Assigned Facility:</label>
+                  <select
+                    required
+                    value={usrFacility}
+                    onChange={(e) => setUsrFacility(e.target.value ? Number(e.target.value) : '')}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                  >
+                    <option value="">Select a facility…</option>
+                    {facilities.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} ({f.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="font-semibold text-slate-300">Designation:</label>
+                <input
+                  type="text"
+                  placeholder="Medical Officer, Staff Nurse, Health Worker"
+                  value={usrDesignation}
+                  onChange={(e) => setUsrDesignation(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-300">Phone Number:</label>
+                <input
+                  type="text"
+                  placeholder="+91-9876543210"
+                  value={usrPhone}
+                  onChange={(e) => setUsrPhone(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsAddUserOpen(false)}
+                className="rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submittingUser}
+                className="flex items-center gap-2 rounded-xl bg-teal-500 px-5 py-2.5 text-xs font-bold text-slate-950 shadow hover:bg-teal-400 disabled:opacity-50"
+              >
+                {submittingUser ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                Create User
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* EDIT USER MODAL */}
+      {editUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={handleUpdateUser}
+            className="w-full max-h-[90vh] overflow-y-auto max-w-md rounded-3xl bg-slate-900 border border-slate-700 p-4 sm:p-6 text-white shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Edit User · {editUser.full_name}</h3>
+              <button
+                type="button"
+                onClick={() => setEditUser(null)}
+                className="text-slate-400 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-400">{editUser.email}</p>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-300">System Role:</label>
+                <select
+                  value={euRole}
+                  onChange={(e) => setEuRole(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                >
+                  <option value="HEALTHCARE_WORKER">Healthcare Worker (Doctor / Nurse)</option>
+                  <option value="FACILITY_ADMIN">Facility Administrator</option>
+                  <option value="SUPER_ADMIN">Super Administrator (State Directorate)</option>
+                </select>
+              </div>
+              {euRole !== 'SUPER_ADMIN' && (
+                <div>
+                  <label className="font-semibold text-slate-300">Assigned Facility:</label>
+                  <select
+                    value={euFacility}
+                    onChange={(e) => setEuFacility(e.target.value ? Number(e.target.value) : '')}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                  >
+                    <option value="">Unassigned</option>
+                    {facilities.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} ({f.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="font-semibold text-slate-300">Designation:</label>
+                <input
+                  type="text"
+                  value={euDesignation}
+                  onChange={(e) => setEuDesignation(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-300">Phone Number:</label>
+                <input
+                  type="text"
+                  value={euPhone}
+                  onChange={(e) => setEuPhone(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 p-2.5 text-white focus:border-teal-400 focus:outline-none"
+                />
+              </div>
+              <label className="flex items-center gap-2 font-semibold text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={euActive}
+                  onChange={(e) => setEuActive(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-teal-500"
+                />
+                Account active (can sign in)
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditUser(null)}
+                className="rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingUser}
+                className="flex items-center gap-2 rounded-xl bg-teal-500 px-5 py-2.5 text-xs font-bold text-slate-950 shadow hover:bg-teal-400 disabled:opacity-50"
+              >
+                {savingUser ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+                Save Changes
               </button>
             </div>
           </form>

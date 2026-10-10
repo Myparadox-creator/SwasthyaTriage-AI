@@ -10,6 +10,7 @@ from models.case import (  # noqa: F401
 )
 from models.conversation import ChatMessage  # noqa: F401
 from models.documents import Document, DocumentExtraction  # noqa: F401
+from models.email import EmailLog, EmailVerificationToken, PasswordResetToken  # noqa: F401
 from models.evaluation import EvaluationRun  # noqa: F401
 from models.evidence import FactEvidence  # noqa: F401
 from models.safety import SafetyRule, SafetySignal  # noqa: F401
@@ -22,5 +23,4 @@ from models.workflow import (  # noqa: F401
     QuestionBankItem,
     Referral,
 )
-from models.email import EmailLog, PasswordResetToken, EmailVerificationToken  # noqa: F401
 

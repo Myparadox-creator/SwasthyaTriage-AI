@@ -11,8 +11,9 @@ Tests:
 from __future__ import annotations
 
 import pytest
+
 from services.rag.chunking import chunk_document_text, preprocess_document_text
-from services.rag.embeddings import EmbeddingService, cosine_similarity
+from services.rag.embeddings import cosine_similarity
 from services.rag.engine import is_clinical_document
 from services.rag.vector_store import RAGVectorStore
 

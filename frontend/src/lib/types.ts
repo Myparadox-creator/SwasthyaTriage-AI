@@ -400,6 +400,16 @@ export interface TeleCallTurnResponse {
   duration_seconds: number
 }
 
+export interface VoiceMessageOut {
+  id: number
+  role: 'AI' | 'PATIENT' | 'SYSTEM'
+  content: string
+  sequence: number
+  language: string | null
+  had_audio: boolean
+  created_at: string
+}
+
 export interface VoiceSessionOut {
   id: number
   public_id: string
@@ -412,6 +422,7 @@ export interface VoiceSessionOut {
   started_at: string | null
   ended_at: string | null
   error_detail: string | null
+  messages: VoiceMessageOut[]
   created_at: string
 }
 

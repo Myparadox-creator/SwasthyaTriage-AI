@@ -18,6 +18,20 @@ class Settings(BaseSettings):
     max_upload_mb: int = 20
     storage_dir: str = "storage"
 
+    # Document storage backend. "local" writes to storage_dir (needs a writable,
+    # persistent disk — fine for a VM but not for most serverless platforms).
+    # "s3" stores uploads in any S3-compatible bucket (AWS S3, Cloudflare R2,
+    # MinIO, Neon object storage). Requires `pip install boto3`; if boto3 is
+    # absent the app logs a warning and falls back to local disk rather than
+    # failing uploads.
+    storage_backend: str = "local"
+    s3_bucket: str = ""
+    s3_region: str = "us-east-1"
+    s3_endpoint_url: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_prefix: str = ""
+
     # Database
     database_url: str = "postgresql+psycopg://localhost:5432/swasthyatriage"
 

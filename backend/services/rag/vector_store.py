@@ -10,12 +10,12 @@ import json
 import logging
 import math
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from config import settings
-from services.rag.chunking import DocumentChunk, chunk_document_text
+from services.rag.chunking import chunk_document_text
 from services.rag.embeddings import EmbeddingService, cosine_similarity
 
 logger = logging.getLogger("swasthyatriage.rag.vector_store")

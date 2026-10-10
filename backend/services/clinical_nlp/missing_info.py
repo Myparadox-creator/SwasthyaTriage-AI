@@ -6,7 +6,6 @@ that have not yet been documented, guiding the healthcare worker on what to ask.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any
 

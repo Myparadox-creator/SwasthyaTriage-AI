@@ -14,7 +14,6 @@ from typing import Any
 from config import settings
 from models import Case, Document
 from schemas.documents import DocumentCitation, DocumentRAGResponse
-from services.rag.embeddings import EmbeddingService
 from services.rag.vector_store import RetrievedChunkResult, vector_store
 
 logger = logging.getLogger("swasthyatriage.rag.engine")
@@ -92,7 +91,9 @@ def _extract_document_text_layer(doc: Document) -> str:
                 == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 or p.suffix.lower() == ".docx"
             ):
-                import io, xml.etree.ElementTree as ET, zipfile
+                import io
+                import xml.etree.ElementTree as ET
+                import zipfile
                 try:
                     data = p.read_bytes()
                     with zipfile.ZipFile(io.BytesIO(data)) as zf:
@@ -135,12 +136,12 @@ def _build_intelligent_fallback_answer(
     # 1. Non-Medical Document Handling (e.g., Computer Science Lab Manuals, Project Reports)
     if not is_med:
         lines = [
-            f"### 📄 Document Analysis & Synthesis",
+            "### 📄 Document Analysis & Synthesis",
             f"**Analyzed File(s):** {doc_names}",
             "",
             "#### 1. Document Overview & Scope",
-            f"- **Nature of Document:** Academic / Technical Document (Non-clinical).",
-            f"- **Identified Topics:** Content focuses on educational/technical subject matter rather than patient medical records.",
+            "- **Nature of Document:** Academic / Technical Document (Non-clinical).",
+            "- **Identified Topics:** Content focuses on educational/technical subject matter rather than patient medical records.",
             "",
             "#### 2. Key Content & Extracted Information",
         ]
@@ -157,8 +158,8 @@ def _build_intelligent_fallback_answer(
         lines.extend([
             "",
             "#### 3. Verification & Notes",
-            f"- **Notice:** This document does not contain medical prescriptions, clinical diagnoses, or lab test values.",
-            f"- You can ask any specific question about the concepts, experiments, or instructions described in this file.",
+            "- **Notice:** This document does not contain medical prescriptions, clinical diagnoses, or lab test values.",
+            "- You can ask any specific question about the concepts, experiments, or instructions described in this file.",
         ])
 
         followups = [
@@ -170,7 +171,7 @@ def _build_intelligent_fallback_answer(
 
     # 2. Real Medical Document Handling
     lines = [
-        f"### 📋 Comprehensive Clinical Document Summary",
+        "### 📋 Comprehensive Clinical Document Summary",
         f"**Analyzed Files ({len(docs)}):** {doc_names}",
         "",
         "#### 1. Patient Case Overview",

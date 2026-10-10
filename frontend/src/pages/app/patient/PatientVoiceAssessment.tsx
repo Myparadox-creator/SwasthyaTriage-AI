@@ -13,6 +13,7 @@ import {
   Loader2,
   Mic,
   PhoneOff,
+  Radio,
   Send,
   Volume2,
   Zap,
@@ -107,6 +108,11 @@ export default function PatientVoiceAssessment() {
   const ttsFirstFiredRef = useRef(false)
   const ttsClosedRef = useRef(true)
   const ttsResumeHackRef = useRef<number | null>(null)
+  const ttsServerSrcRef = useRef<AudioBufferSourceNode | null>(null)
+  const ttsAudioCtxRef = useRef<AudioContext | null>(null)
+  const ttsServerDisabledRef = useRef(false)
+  const caseIdRef = useRef<number | null>(null)
+  const sessionIdRef = useRef<string | null>(null)
   const pendingAutoSubmitRef = useRef(false)
   const speechEndTimestampRef = useRef<number>(0)
   const [micLevel, setMicLevel] = useState(0)
@@ -131,6 +137,14 @@ export default function PatientVoiceAssessment() {
     mediaRecorderRef.current = null
   }
 
+  // Keep the current case/session ids available to the TTS engine.
+  useEffect(() => {
+    caseIdRef.current = caseDetail?.id ?? null
+  }, [caseDetail])
+  useEffect(() => {
+    sessionIdRef.current = voiceSession?.public_id ?? null
+  }, [voiceSession])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -140,6 +154,12 @@ export default function PatientVoiceAssessment() {
       mediaStreamRef.current = null
       audioContextRef.current?.close().catch(() => {})
       audioContextRef.current = null
+      try {
+        ttsServerSrcRef.current?.stop()
+      } catch {}
+      ttsServerSrcRef.current = null
+      ttsAudioCtxRef.current?.close().catch(() => {})
+      ttsAudioCtxRef.current = null
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel()
       }
@@ -211,6 +231,10 @@ export default function PatientVoiceAssessment() {
     ttsFirstFiredRef.current = false
     clearResumeHack()
     try {
+      ttsServerSrcRef.current?.stop()
+    } catch {}
+    ttsServerSrcRef.current = null
+    try {
       window.speechSynthesis?.cancel()
     } catch {}
   }
@@ -221,6 +245,100 @@ export default function PatientVoiceAssessment() {
     ttsActiveRef.current = false
     ttsFirstCbRef.current = null
     if (done) done()
+  }
+
+  // Server-side TTS (Gemini). Returns true when it played a sentence; the
+  // caller falls back to the browser voice on false so audio never goes silent.
+  const speakSentenceServer = async (
+    sentence: string,
+    generation: number,
+    onStart: (ts: number) => void,
+    advance: () => void
+  ): Promise<boolean> => {
+    const cid = caseIdRef.current
+    const sid = sessionIdRef.current
+    if (ttsServerDisabledRef.current || cid == null || sid == null) return false
+    try {
+      const token = getAccessToken()
+      const res = await fetch(`/api/cases/${cid}/voice/sessions/${sid}/speak`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ text: sentence, language: lang }),
+      })
+      if (!res.ok) {
+        if (res.status === 503) ttsServerDisabledRef.current = true
+        return false
+      }
+      const buf = await res.arrayBuffer()
+      if (ttsGenerationRef.current !== generation) return true
+      if (!buf.byteLength) return false
+
+      const ctx = (ttsAudioCtxRef.current ??= new AudioContext())
+      if (ctx.state === 'suspended') {
+        try {
+          await ctx.resume()
+        } catch {}
+      }
+      const i16 = new Int16Array(buf)
+      const f32 = new Float32Array(i16.length)
+      for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768
+      const audioBuf = ctx.createBuffer(1, f32.length, 24000)
+      audioBuf.copyToChannel(f32, 0)
+      const src = ctx.createBufferSource()
+      src.buffer = audioBuf
+      src.connect(ctx.destination)
+      src.onended = () => {
+        if (ttsServerSrcRef.current === src) ttsServerSrcRef.current = null
+        if (ttsGenerationRef.current === generation) advance()
+      }
+      if (!ttsFirstFiredRef.current) {
+        ttsFirstFiredRef.current = true
+        onStart(Date.now())
+      }
+      ttsServerSrcRef.current = src
+      src.start()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Browser SpeechSynthesis fallback for one sentence.
+  const speakSentenceBrowser = (
+    sentence: string,
+    generation: number,
+    onStart: (ts: number) => void,
+    advance: () => void
+  ) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      onStart(Date.now())
+      window.setTimeout(advance, 400)
+      return
+    }
+    const chosenVoice = pickTtsVoice()
+    const utterance = new SpeechSynthesisUtterance(sentence)
+    utterance.lang = lang === 'en' ? 'en-IN' : 'hi-IN'
+    utterance.rate = 1.0
+    if (chosenVoice) utterance.voice = chosenVoice
+
+    utterance.onstart = () => {
+      if (ttsGenerationRef.current !== generation) return
+      if (!ttsFirstFiredRef.current) {
+        ttsFirstFiredRef.current = true
+        onStart(Date.now())
+      }
+    }
+    utterance.onend = advance
+    utterance.onerror = advance
+
+    try {
+      window.speechSynthesis.speak(utterance)
+    } catch {
+      advance()
+    }
   }
 
   const speakNextQueued = (generation: number) => {
@@ -237,32 +355,18 @@ export default function PatientVoiceAssessment() {
 
     const sentence = ttsQueueRef.current.shift() as string
     ttsActiveRef.current = true
-    const chosenVoice = pickTtsVoice()
-    const utterance = new SpeechSynthesisUtterance(sentence)
-    utterance.lang = lang === 'en' ? 'en-IN' : 'hi-IN'
-    utterance.rate = 1.0
-    if (chosenVoice) utterance.voice = chosenVoice
-
-    utterance.onstart = () => {
-      if (ttsGenerationRef.current !== generation) return
-      if (!ttsFirstFiredRef.current) {
-        ttsFirstFiredRef.current = true
-        ttsFirstCbRef.current?.(Date.now())
-      }
-    }
-
+    const onStart = (ts: number) => ttsFirstCbRef.current?.(ts)
     const advance = () => {
       if (ttsGenerationRef.current !== generation) return
       speakNextQueued(generation)
     }
-    utterance.onend = advance
-    utterance.onerror = advance
 
-    try {
-      window.speechSynthesis.speak(utterance)
-    } catch {
-      advance()
-    }
+    // Prefer server-side TTS; transparently fall back to the browser voice.
+    void speakSentenceServer(sentence, generation, onStart, advance).then((played) => {
+      if (played) return
+      if (ttsGenerationRef.current !== generation) return
+      speakSentenceBrowser(sentence, generation, onStart, advance)
+    })
   }
 
   // Appends a chunk of assistant text to the current turn's speech queue.
@@ -281,36 +385,22 @@ export default function PatientVoiceAssessment() {
     onDone?: () => void
   ) => {
     cancelTts()
-    const generation = ttsGenerationRef.current
     ttsClosedRef.current = false
     ttsFirstFiredRef.current = false
     ttsFirstCbRef.current = onFirstPlaybackStart || null
     ttsDoneCbRef.current = onDone || null
     applyVoiceState('SPEAKING')
 
-    if (typeof window === 'undefined' || !window.speechSynthesis) {
-      // No browser TTS: synthesize a short delay so the turn still completes.
-      ttsActiveRef.current = false
-      ttsFirstFiredRef.current = true
-      ttsFirstCbRef.current?.(Date.now())
-      window.setTimeout(() => {
-        if (ttsGenerationRef.current !== generation) return
-        ttsClosedRef.current = true
-        const done = ttsDoneCbRef.current
-        ttsDoneCbRef.current = null
-        finishTts(generation, done)
-      }, 400)
-      return
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      // Chrome keeps utterances alive too long without a periodic resume() kick
+      ttsResumeHackRef.current = window.setInterval(() => {
+        try {
+          if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+            window.speechSynthesis.resume()
+          }
+        } catch {}
+      }, 8000)
     }
-
-    // Chrome keeps utterances alive too long without a periodic resume() kick
-    ttsResumeHackRef.current = window.setInterval(() => {
-      try {
-        if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
-          window.speechSynthesis.resume()
-        }
-      } catch {}
-    }, 8000)
 
     enqueueSpeech(firstText)
   }
@@ -969,6 +1059,19 @@ export default function PatientVoiceAssessment() {
                 <Mic className="h-4 w-4" />
                 Start Voice Conversation with Sonam
               </button>
+              <button
+                type="button"
+                onClick={() => navigate('/app/patient/voice/live')}
+                className="mx-auto flex items-center gap-2 rounded-2xl border border-teal-300 bg-white px-5 py-2.5 text-xs font-bold text-teal-800 shadow-sm transition hover:bg-teal-50 active:scale-95"
+              >
+                <Radio className="h-4 w-4" />
+                Realtime Live mode (streaming, barge-in)
+              </button>
+              <p className="text-[10px] leading-relaxed text-slate-400">
+                Classic mode listens turn-by-turn and speaks with your browser&apos;s voice. For a
+                fully duplex, interruptible conversation that streams in real time, choose Realtime
+                Live mode.
+              </p>
             </div>
           ) : (
             <div className="w-full max-w-lg space-y-4 sm:space-y-6">

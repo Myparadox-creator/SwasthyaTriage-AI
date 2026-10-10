@@ -26,7 +26,7 @@ from services.intake.conversation import (
     progress,
     record_answer_for_question,
 )
-from services.intake.fallback import Extraction, extract_from_message
+from services.intake.fallback import extract_from_message
 from services.safety.service import reevaluate_case
 
 logger = logging.getLogger("swasthyatriage.voice.agent")

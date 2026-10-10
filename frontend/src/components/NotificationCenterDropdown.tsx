@@ -24,57 +24,10 @@ export interface AppNotification {
   linkTo: string
 }
 
-const INITIAL_NOTIFICATIONS: AppNotification[] = [
-  {
-    id: 'notif-1',
-    category: 'SAFETY_ESCALATION',
-    encounterId: 'ENC-DEMO-1042',
-    title: 'Urgent Cardiac Safety Escalation',
-    description: 'Crushing chest pain radiating to arm reported. Red-flag protocol active.',
-    priority: 'CRITICAL',
-    timestamp: '2 mins ago',
-    read: false,
-    linkTo: '/app/hcw/communication',
-  },
-  {
-    id: 'notif-2',
-    category: 'CLARIFICATION',
-    encounterId: 'ENC-DEMO-1039',
-    title: 'Clarification Responded by ASHA Sunita',
-    description: 'Updated vital signs: Pulse 108 bpm, SpO2 94% provided for case review.',
-    priority: 'URGENT',
-    timestamp: '14 mins ago',
-    read: false,
-    linkTo: '/app/hcw/communication',
-  },
-  {
-    id: 'notif-3',
-    category: 'HANDOFF',
-    encounterId: 'ENC-DEMO-1035',
-    title: 'Clinical Handoff Acknowledged',
-    description: 'Dr. Debasish Mishra acknowledged receipt of CHC referral handoff.',
-    priority: 'ROUTINE',
-    timestamp: '42 mins ago',
-    read: true,
-    linkTo: '/app/hcw/referrals',
-  },
-  {
-    id: 'notif-4',
-    category: 'NEW_ENCOUNTER',
-    encounterId: 'ENC-DEMO-1048',
-    title: 'New Encounter Submitted from Triage Desk',
-    description: 'Pediatric high fever 103°F intake completed via voice agent.',
-    priority: 'URGENT',
-    timestamp: '1 hour ago',
-    read: true,
-    linkTo: '/app/hcw/queue',
-  },
-]
-
 export default function NotificationCenterDropdown() {
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState<'ALL' | 'CRITICAL' | 'CLARIFICATION'>('ALL')
-  const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS)
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
 
   const fetchLiveNotifications = async () => {
     if (!getAccessToken()) return
@@ -92,8 +45,7 @@ export default function NotificationCenterDropdown() {
         unread_count: number
       }>('/api/notifications', { params: { per_page: 20 } })
 
-      if (res?.items && res.items.length > 0) {
-        const liveItems: AppNotification[] = res.items.map((item) => {
+      const liveItems: AppNotification[] = (res?.items ?? []).map((item) => {
           const isCrit =
             item.title.toLowerCase().includes('emergency') ||
             item.title.toLowerCase().includes('critical') ||
@@ -113,11 +65,10 @@ export default function NotificationCenterDropdown() {
             read: Boolean(item.read_at),
             linkTo: item.case_id ? `/app/hcw/cases/${item.case_id}` : '/app/hcw/queue',
           }
-        })
-        setNotifications(liveItems)
-      }
+      })
+      setNotifications(liveItems)
     } catch {
-      // Fallback silently to existing list
+      // Keep last known state on transient errors
     }
   }
 
@@ -240,7 +191,11 @@ export default function NotificationCenterDropdown() {
           {/* Notifications List */}
           <div className="mt-2.5 max-h-80 space-y-2 overflow-y-auto pr-1">
             {filtered.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400">No notifications in this filter</div>
+              <div className="py-8 text-center text-xs text-slate-400">
+                {notifications.length === 0
+                  ? 'You have no notifications yet.'
+                  : 'No notifications in this filter.'}
+              </div>
             ) : (
               filtered.map((n) => (
                 <Link

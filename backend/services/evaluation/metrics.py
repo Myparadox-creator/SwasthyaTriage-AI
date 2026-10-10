@@ -10,7 +10,7 @@ Implements exact standard formulations:
 from __future__ import annotations
 
 import re
-from typing import Sequence
+from collections.abc import Sequence
 
 
 def compute_levenshtein_distance(seq_ref: Sequence[str], seq_hyp: Sequence[str]) -> tuple[int, int, int, int]:

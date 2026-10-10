@@ -1,6 +1,7 @@
 """Unit tests for Longitudinal Multi-Encounter Summarization."""
 
 import pytest
+
 from database.session import SessionLocal
 from models import Case
 from services.longitudinal.summarizer import build_longitudinal_trajectory

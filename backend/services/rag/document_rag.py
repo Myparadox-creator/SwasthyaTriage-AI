@@ -17,11 +17,9 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import UTC, datetime
 from typing import Any
 
-from config import settings
-from models import Case, Document, DocumentExtraction
+from models import Case, Document
 from schemas.documents import DocumentCitation, DocumentRAGResponse
 
 logger = logging.getLogger("swasthyatriage.rag.documents")
@@ -94,9 +92,12 @@ def _extract_document_text(doc: Document) -> str:
     # Storage fallback if raw text was not in DocumentExtraction
     if not parts and doc.storage_path:
         try:
-            from services.storage import resolve_storage_path
+            import io
+            import xml.etree.ElementTree as ET
+            import zipfile
+
             from services.ocr.text import extract_pdf_text
-            import io, xml.etree.ElementTree as ET, zipfile
+            from services.storage import resolve_storage_path
             p = resolve_storage_path(doc.storage_path)
             if p.is_file():
                 if doc.content_type == "application/pdf":
@@ -202,7 +203,7 @@ def _build_deterministic_answer(
     # 1. SUMMARIZE MODE
     if mode == "summarize":
         lines = [
-            f"### 📋 Comprehensive Clinical Document Summary",
+            "### 📋 Comprehensive Clinical Document Summary",
             f"**Analyzed Files ({len(docs)}):** {doc_names}",
             "",
             "#### 1. Patient Case Overview",
@@ -243,7 +244,7 @@ def _build_deterministic_answer(
     # 2. KEY POINTS MODE
     elif mode == "key_points":
         lines = [
-            f"### 🎯 Key Clinical Takeaways",
+            "### 🎯 Key Clinical Takeaways",
             f"**Sources Analyzed:** {doc_names}",
             "",
         ]
@@ -274,7 +275,7 @@ def _build_deterministic_answer(
                 terms_found.append((term.upper(), explanation))
 
         lines = [
-            f"### 💡 Clinical Explanation & Medical Interpretation",
+            "### 💡 Clinical Explanation & Medical Interpretation",
             f"**Grounded in files:** {doc_names}",
             "",
         ]
@@ -303,7 +304,7 @@ def _build_deterministic_answer(
     # 4. COMPARE MODE
     elif mode == "compare":
         lines = [
-            f"### 🔀 Document & Clinical Parameter Comparison",
+            "### 🔀 Document & Clinical Parameter Comparison",
             f"**Comparing Documents ({len(docs)}):** {doc_names}",
             "",
         ]
@@ -328,7 +329,7 @@ def _build_deterministic_answer(
     # 5. FIND QUOTES MODE
     elif mode == "quotes":
         lines = [
-            f"### 🔍 Verbatim Passages & Grounded Citations",
+            "### 🔍 Verbatim Passages & Grounded Citations",
             f"**Search Query:** \"{query}\"",
             f"**Documents Searched:** {doc_names}",
             "",
@@ -364,7 +365,7 @@ def _build_deterministic_answer(
     # 6. DEEP DIVE MODE
     elif mode == "deep_dive":
         lines = [
-            f"### 📖 In-Depth Clinical Document Deep Dive",
+            "### 📖 In-Depth Clinical Document Deep Dive",
             f"**Comprehensive Analysis of:** {doc_names}",
             "",
             "#### 1. Document Authenticity & Clinical Scope",

@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 from config import settings
-import time
 from services.gemini.errors import ProviderError, ProviderUnavailable
 from services.gemini.extraction import DocumentExtractionSchema, normalize
 from services.gemini.summary import SYSTEM_PROMPT, build_generation_prompt
@@ -27,6 +27,12 @@ FALLBACK_MODELS = [
     "gemini-3-flash-preview",
     "gemini-2.5-flash",
     "gemini-flash-latest",
+]
+
+# Text-to-speech models (return raw PCM at 24 kHz, mono, signed 16-bit LE).
+TTS_MODELS = [
+    "gemini-2.5-flash-preview-tts",
+    "gemini-2.5-pro-preview-tts",
 ]
 
 # In-memory Circuit Breaker state shared across client instances
@@ -328,6 +334,70 @@ class GeminiClient:
                 logger.warning("Transcription failed on %s: %s", model, exc)
                 continue
         raise ProviderError("Failed to transcribe audio across all available models")
+
+    def synthesize_speech(
+        self,
+        text: str,
+        *,
+        voice_name: str = "Kore",
+        language: str | None = None,
+    ) -> tuple[bytes, str]:
+        """Synthesize speech for `text` using Gemini TTS.
+
+        Returns ``(pcm_bytes, mime_type)`` where the audio is raw 24 kHz mono
+        signed 16-bit PCM (mime ``audio/pcm;rate=24000``) so the browser can
+        decode it with the Web Audio API.
+        """
+        import base64
+
+        from google.genai import types
+
+        clean = (text or "").strip()
+        if not clean:
+            raise ProviderError("Cannot synthesize empty text")
+
+        lang_code = {
+            "hi": "hi-IN",
+            "od": "or-IN",
+            "en": "en-IN",
+        }.get((language or "en").lower(), "en-IN")
+
+        config = types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                language_code=lang_code,
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name)
+                ),
+            ),
+        )
+
+        client = self._get_client(is_interactive=True)
+        last_error: ProviderError | None = None
+        for model in TTS_MODELS:
+            try:
+                response = client.models.generate_content(
+                    model=model, contents=clean, config=config
+                )
+                for candidate in getattr(response, "candidates", None) or []:
+                    content = getattr(candidate, "content", None)
+                    for part in getattr(content, "parts", None) or []:
+                        inline = getattr(part, "inline_data", None)
+                        data = getattr(inline, "data", None)
+                        if not data:
+                            continue
+                        if isinstance(data, str):
+                            data = base64.b64decode(data)
+                        if len(data) > 0:
+                            return bytes(data), "audio/pcm;rate=24000"
+            except Exception as exc:  # noqa: BLE001
+                if _is_quota_or_rate_limit(exc):
+                    trip_circuit_breaker(str(exc), cooldown_seconds=_CIRCUIT_COOLDOWN_SECONDS)
+                    raise ProviderUnavailable(f"Gemini quota exhausted: {exc}") from exc
+                logger.warning("TTS failed on %s: %s", model, exc)
+                last_error = ProviderError(f"TTS failed on {model}: {exc}")
+                continue
+        raise last_error or ProviderError("TTS returned no audio across all models")
 
     def triage_voice_turn(
         self,

@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 
 import main
 from database.session import SessionLocal
 from middleware.ratelimit import limiter
-import uuid
 from models import Case, Document, DocumentExtraction, Patient, User
-from models.enums import CaseSource, CaseStatus, DocumentStatus, ExtractionMethod, Language, Priority, Provenance, Role
+from models.enums import (
+    CaseSource,
+    CaseStatus,
+    DocumentStatus,
+    ExtractionMethod,
+    Language,
+    Priority,
+    Provenance,
+)
 
 PATIENT_EMAIL = "patient.anita@swasthyatriage.demo"
 PASSWORD = "Swasthya@123"

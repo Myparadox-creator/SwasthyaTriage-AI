@@ -18,6 +18,7 @@ import NewAssessment from './pages/app/patient/NewAssessment'
 import CaseChat from './pages/app/patient/CaseChat'
 import PatientUploads from './pages/app/patient/PatientUploads'
 import PatientVoiceAssessment from './pages/app/patient/PatientVoiceAssessment'
+import PatientLiveVoice from './pages/app/patient/PatientLiveVoice'
 import VoiceCallbackPage from './pages/app/patient/VoiceCallbackPage'
 import HcwDashboard from './pages/app/hcw/HcwDashboard'
 import PatientQueue from './pages/app/hcw/PatientQueue'
@@ -77,6 +78,7 @@ export default function App() {
                 <Route path="cases/:caseId" element={<CaseChat />} />
                 <Route path="uploads" element={<PatientUploads />} />
                 <Route path="voice" element={<PatientVoiceAssessment />} />
+        <Route path="voice/live" element={<PatientLiveVoice />} />
                 <Route path="callback" element={<VoiceCallbackPage />} />
                 <Route path="pharmacies" element={<NearbyPharmaciesPage />} />
               </Route>

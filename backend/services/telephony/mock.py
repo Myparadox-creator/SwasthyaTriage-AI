@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import random
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from models import CallTranscript, Case, FollowUp, TeleCall, User

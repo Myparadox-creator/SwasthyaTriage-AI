@@ -8,9 +8,12 @@ import {
   FileSpreadsheet,
   FileText,
   Loader2,
+  Pencil,
+  Power,
   RefreshCw,
   ScrollText,
   Settings,
+  Trash2,
   UserCheck,
   UserPlus,
   Users,
@@ -74,6 +77,13 @@ export default function FacilityAdminDashboard() {
   const [newStaffPhone, setNewStaffPhone] = useState('')
   const [submittingStaff, setSubmittingStaff] = useState(false)
 
+  // Edit Staff Modal
+  const [editStaff, setEditStaff] = useState<StaffUserOut | null>(null)
+  const [esDesignation, setEsDesignation] = useState('')
+  const [esPhone, setEsPhone] = useState('')
+  const [esActive, setEsActive] = useState(true)
+  const [savingStaff, setSavingStaff] = useState(false)
+
   const loadData = () => {
     setLoading(true)
     Promise.all([
@@ -121,6 +131,57 @@ export default function FacilityAdminDashboard() {
       alert(err instanceof Error ? err.message : 'Could not create staff user')
     } finally {
       setSubmittingStaff(false)
+    }
+  }
+
+  const openEditStaff = (s: StaffUserOut) => {
+    setEditStaff(s)
+    setEsDesignation(s.designation ?? '')
+    setEsPhone(s.phone ?? '')
+    setEsActive(s.is_active)
+  }
+
+  const handleUpdateStaff = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editStaff) return
+    setSavingStaff(true)
+    try {
+      await api<StaffUserOut>(`/api/admin/users/${editStaff.id}`, {
+        method: 'PATCH',
+        body: {
+          designation: esDesignation.trim() || null,
+          phone: esPhone.trim() || null,
+          is_active: esActive,
+        },
+      })
+      setEditStaff(null)
+      loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not update staff member')
+    } finally {
+      setSavingStaff(false)
+    }
+  }
+
+  const toggleStaffActive = async (s: StaffUserOut) => {
+    try {
+      await api<StaffUserOut>(`/api/admin/users/${s.id}`, {
+        method: 'PATCH',
+        body: { is_active: !s.is_active },
+      })
+      loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not update staff status')
+    }
+  }
+
+  const handleDeleteStaff = async (s: StaffUserOut) => {
+    if (!window.confirm(`Remove staff member "${s.full_name}" (${s.email})? Their access will be revoked.`)) return
+    try {
+      await api(`/api/admin/users/${s.id}`, { method: 'DELETE' })
+      loadData()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not remove staff member')
     }
   }
 
@@ -383,6 +444,7 @@ export default function FacilityAdminDashboard() {
                   <th className="p-3">Designation</th>
                   <th className="p-3">Status</th>
                   <th className="p-3">Last Active</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -397,12 +459,43 @@ export default function FacilityAdminDashboard() {
                     </td>
                     <td className="p-3 text-slate-700">{s.designation || 'Healthcare Staff'}</td>
                     <td className="p-3">
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                        Active
-                      </span>
+                      {s.is_active ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                          Inactive
+                        </span>
+                      )}
                     </td>
                     <td className="p-3 text-slate-400">
                       {s.last_login_at ? new Date(s.last_login_at).toLocaleDateString() : 'Recent'}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditStaff(s)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          <Pencil className="h-3 w-3" /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleStaffActive(s)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-amber-300 px-2 py-1 text-[10px] font-semibold text-amber-800 hover:bg-amber-50"
+                        >
+                          <Power className="h-3 w-3" /> {s.is_active ? 'Disable' : 'Enable'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStaff(s)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2 py-1 text-[10px] font-semibold text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3 w-3" /> Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -727,6 +820,81 @@ export default function FacilityAdminDashboard() {
               >
                 {submittingStaff ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
                 Save Staff Account
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* EDIT STAFF MODAL */}
+      {editStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={handleUpdateStaff}
+            className="w-full max-h-[90vh] overflow-y-auto max-w-md rounded-3xl bg-white p-4 sm:p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900">Edit Staff · {editStaff.full_name}</h3>
+              <button
+                type="button"
+                onClick={() => setEditStaff(null)}
+                className="text-slate-400 hover:text-slate-700 text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-500">
+              {editStaff.email} · <span className="font-semibold">{editStaff.role}</span>
+            </p>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700">Clinical Designation:</label>
+                <input
+                  type="text"
+                  value={esDesignation}
+                  onChange={(e) => setEsDesignation(e.target.value)}
+                  placeholder="Medical Officer, Staff Nurse, Health Worker"
+                  className="mt-1 w-full rounded-xl border border-slate-300 p-2.5 text-slate-800 focus:border-teal-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-slate-700">Phone Number:</label>
+                <input
+                  type="text"
+                  value={esPhone}
+                  onChange={(e) => setEsPhone(e.target.value)}
+                  placeholder="+91-9876543210"
+                  className="mt-1 w-full rounded-xl border border-slate-300 p-2.5 text-slate-800 focus:border-teal-500 focus:outline-none"
+                />
+              </div>
+              <label className="flex items-center gap-2 font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={esActive}
+                  onChange={(e) => setEsActive(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-teal-600"
+                />
+                Account active (can sign in)
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEditStaff(null)}
+                className="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingStaff}
+                className="flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-xs font-bold text-white shadow hover:bg-teal-800 disabled:opacity-50"
+              >
+                {savingStaff ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+                Save Changes
               </button>
             </div>
           </form>

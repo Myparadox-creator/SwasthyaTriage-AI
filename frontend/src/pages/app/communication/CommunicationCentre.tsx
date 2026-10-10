@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Check,
@@ -13,14 +13,26 @@ import {
   Stethoscope,
   WifiOff,
 } from 'lucide-react'
+import { api } from '../../../lib/api'
+import type {
+  CaseDetail,
+  CaseListItem,
+  CaseListResponse,
+  CaseStatus,
+  ChatHistoryResponse,
+  ChatMessageOut,
+  MessageRole,
+} from '../../../lib/types'
 import { useAuthStore } from '../../../stores/auth'
 import { useNetworkStore } from '../../../stores/network'
+
+type UiRole = 'DOCTOR' | 'NURSE' | 'ASHA' | 'ADMIN' | 'SYSTEM' | 'PATIENT'
 
 interface Message {
   id: string
   senderId: string
   senderName: string
-  senderRole: 'DOCTOR' | 'NURSE' | 'ASHA' | 'ADMIN' | 'SYSTEM'
+  senderRole: UiRole
   content: string
   timestamp: string
   status: 'SENT' | 'DELIVERED' | 'READ'
@@ -31,6 +43,7 @@ interface Message {
 
 interface ConversationItem {
   id: string
+  caseId: number
   facilityId: number
   encounterId: string
   patientName: string
@@ -42,7 +55,7 @@ interface ConversationItem {
   lastTimestamp: string
   unreadCount: number
   context: {
-    status: 'IN_TRIAGE' | 'PENDING_CLARIFICATION' | 'DOCTOR_REVIEW' | 'HANDOFF_READY'
+    status: CaseStatus
     assignedNurse: string
     assignedDoctor: string
     assignedAsha: string
@@ -57,186 +70,175 @@ interface ConversationItem {
   messages: Message[]
 }
 
-const INITIAL_CONVERSATIONS: ConversationItem[] = [
-  {
-    id: 'conv-1042',
-    facilityId: 1,
-    encounterId: 'ENC-DEMO-1042',
-    patientName: 'Subhasree Mohapatra (28 F)',
-    title: 'Post-Intake Cardiac Distress & Chest Radiance',
-    participants: [
-      { name: 'Dr. Debasish Mishra', role: 'DOCTOR', online: true },
-      { name: 'Nurse Anjali Das', role: 'NURSE', online: true },
-      { name: 'Sunita Nayak (ASHA)', role: 'ASHA', online: true },
-    ],
-    category: 'CLARIFICATION',
-    priority: 'CRITICAL',
-    lastMessage: 'Vitals re-checked: BP 142/94 mmHg, SpO2 93%. Patient transported to ambulance bay.',
-    lastTimestamp: '10:42 AM',
-    unreadCount: 2,
-    context: {
-      status: 'PENDING_CLARIFICATION',
-      assignedNurse: 'Nurse Anjali Das',
-      assignedDoctor: 'Dr. Debasish Mishra',
-      assignedAsha: 'Sunita Nayak (Rampur SC)',
-      chiefComplaint: 'Crushing retrosternal chest pain radiating to left arm and jaw for 3 hrs.',
-      vitals: { bp: '142/94 mmHg', spo2: '93%', pulse: '112 bpm', temp: '99.1°F' },
-      duration: '3 hours',
-      safetyFlag: 'CRITICAL RED FLAG — Acute Cardiac Distress / Possible STEMI',
-      pendingClarifications: [
-        'Confirm if patient has history of angina or diabetes',
-        'Has 300mg soluble Aspirin been administered at Sub-Centre?',
-      ],
-      handoffDestination: 'Capital Hospital Cardiology Ward 4',
-      handoffAcknowledged: false,
-    },
-    messages: [
-      {
-        id: 'm1',
-        senderId: 'asha-1',
-        senderName: 'Sunita Nayak (ASHA)',
-        senderRole: 'ASHA',
-        content: 'Submitted encounter ENC-DEMO-1042 from Rampur village camp. Patient presented with cold sweats and chest pressure.',
-        timestamp: '10:35 AM',
-        status: 'READ',
-      },
-      {
-        id: 'm2',
-        senderId: 'sys',
-        senderName: 'Deterministic Safety Engine',
-        senderRole: 'SYSTEM',
-        content: '🚨 Urgent Red-Flag Triggered: Rule CARDIAC_CHEST_PAIN matched. Triage urgency elevated to RED.',
-        timestamp: '10:36 AM',
-        status: 'READ',
-        isSystemEvent: true,
-      },
-      {
-        id: 'm3',
-        senderId: 'nurse-1',
-        senderName: 'Nurse Anjali Das',
-        senderRole: 'NURSE',
-        content: 'Sunita didi, please re-check SpO2 immediately and confirm if she is experiencing shortness of breath while seated.',
-        timestamp: '10:38 AM',
-        status: 'READ',
-        isClarification: true,
-      },
-      {
-        id: 'm4',
-        senderId: 'asha-1',
-        senderName: 'Sunita Nayak (ASHA)',
-        senderRole: 'ASHA',
-        content: 'Vitals re-checked: BP 142/94 mmHg, SpO2 93%. Patient transported to ambulance bay.',
-        timestamp: '10:42 AM',
-        status: 'READ',
-      },
-      {
-        id: 'm5',
-        senderId: 'doc-1',
-        senderName: 'Dr. Debasish Mishra',
-        senderRole: 'DOCTOR',
-        content: 'Received notification. Direct ambulance 108 to Capital Hospital CCU directly. Keep 4L O2 mask active.',
-        timestamp: '10:44 AM',
-        status: 'DELIVERED',
-      },
-    ],
-  },
-  {
-    id: 'conv-1043',
-    facilityId: 1,
-    encounterId: 'ENC-DEMO-1043',
-    patientName: 'Kailash Behera (62 M)',
-    title: 'Persistent Febrile Illness & Lab OCR Review',
-    participants: [
-      { name: 'Dr. Debasish Mishra', role: 'DOCTOR', online: true },
-      { name: 'Nurse Anjali Das', role: 'NURSE', online: true },
-    ],
-    category: 'ASSIGNED',
-    priority: 'URGENT',
-    lastMessage: 'Lab report OCR extracted: Platelets 85,000 /uL. Dengue NS1 positive.',
-    lastTimestamp: '09:15 AM',
-    unreadCount: 0,
-    context: {
-      status: 'DOCTOR_REVIEW',
-      assignedNurse: 'Nurse Anjali Das',
-      assignedDoctor: 'Dr. Debasish Mishra',
-      assignedAsha: 'Puspalata Giri',
-      chiefComplaint: 'High-grade fever 103°F with retro-orbital headache for 5 days.',
-      vitals: { bp: '110/72 mmHg', spo2: '97%', pulse: '98 bpm', temp: '102.8°F' },
-      duration: '5 days',
-      safetyFlag: 'URGENT REVIEW — Thrombocytopenia with febrile illness',
-      pendingClarifications: [],
-      handoffDestination: 'CHC Balipatna Observation Ward',
-      handoffAcknowledged: true,
-    },
-    messages: [
-      {
-        id: 'm10',
-        senderId: 'nurse-1',
-        senderName: 'Nurse Anjali Das',
-        senderRole: 'NURSE',
-        content: 'Lab report OCR extracted: Platelets 85,000 /uL. Dengue NS1 positive.',
-        timestamp: '09:15 AM',
-        status: 'READ',
-      },
-    ],
-  },
-  {
-    id: 'conv-1044',
-    facilityId: 1,
-    encounterId: 'ENC-DEMO-1044',
-    patientName: 'Anita Sahoo (34 F)',
-    title: 'Pediatric Acute Wheeze Consultation',
-    participants: [
-      { name: 'Dr. Priya Ranjan', role: 'DOCTOR', online: false },
-      { name: 'Nurse Anjali Das', role: 'NURSE', online: true },
-    ],
-    category: 'HANDOFF',
-    priority: 'ROUTINE',
-    lastMessage: 'Nebulization completed. Respiratory rate stabilized to 22/min.',
-    lastTimestamp: 'Yesterday',
-    unreadCount: 0,
-    context: {
-      status: 'HANDOFF_READY',
-      assignedNurse: 'Nurse Anjali Das',
-      assignedDoctor: 'Dr. Priya Ranjan',
-      assignedAsha: 'Sunita Nayak',
-      chiefComplaint: 'Mild seasonal wheeze and cough for 2 days.',
-      vitals: { bp: '118/76 mmHg', spo2: '99%', pulse: '84 bpm', temp: '98.6°F' },
-      duration: '2 days',
-      pendingClarifications: [],
-      handoffDestination: 'Home Care Guidance',
-      handoffAcknowledged: true,
-    },
-    messages: [
-      {
-        id: 'm20',
-        senderId: 'nurse-1',
-        senderName: 'Nurse Anjali Das',
-        senderRole: 'NURSE',
-        content: 'Nebulization completed. Respiratory rate stabilized to 22/min.',
-        timestamp: 'Yesterday',
-        status: 'READ',
-      },
-    ],
-  },
-]
+function uiRoleFor(role: MessageRole): UiRole {
+  if (role === 'PATIENT') return 'PATIENT'
+  if (role === 'SYSTEM') return 'DOCTOR'
+  return 'SYSTEM'
+}
+
+function fmt(ts: string | null | undefined): string {
+  if (!ts) return ''
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function derivePriority(c: CaseListItem): 'ROUTINE' | 'URGENT' | 'CRITICAL' {
+  if (c.priority === 'URGENT_REVIEW' || c.signal_count > 0) return 'CRITICAL'
+  if (c.priority === 'REVIEW_REQUIRED') return 'URGENT'
+  return 'ROUTINE'
+}
+
+function deriveCategory(c: CaseListItem): 'ASSIGNED' | 'CLARIFICATION' | 'HANDOFF' {
+  if (c.status === 'REFERRED' || c.status === 'ESCALATED') return 'HANDOFF'
+  if (c.status === 'DRAFT' || c.status === 'FOLLOW_UP_REQUIRED') return 'CLARIFICATION'
+  return 'ASSIGNED'
+}
+
+function vitalsFrom(detail: CaseDetail | null): { bp: string; spo2: string; pulse: string; temp: string } {
+  const find = (needle: string) => detail?.measurements.find((m) => m.name.toLowerCase().includes(needle))
+  const show = (m?: { value: string; unit: string | null }) =>
+    m ? `${m.value}${m.unit ? ' ' + m.unit : ''}` : '—'
+  return {
+    bp: show(find('blood pressure') || find('bp')),
+    spo2: show(find('spo2') || find('oxygen')),
+    pulse: show(find('pulse') || find('heart')),
+    temp: show(find('temp')),
+  }
+}
 
 export default function CommunicationCentre() {
   const user = useAuthStore((s) => s.user)!
   const { mode } = useNetworkStore()
 
-  const [conversations, setConversations] = useState<ConversationItem[]>(() =>
-    user.facility_id
-      ? INITIAL_CONVERSATIONS.map((c) => ({ ...c, facilityId: user.facility_id as number }))
-      : INITIAL_CONVERSATIONS
-  )
-  const [activeConvId, setActiveConvId] = useState<string>(INITIAL_CONVERSATIONS[0].id)
+  const [conversations, setConversations] = useState<ConversationItem[]>([])
+  const [activeConvId, setActiveConvId] = useState<string>('')
   const [activeTab, setActiveTab] = useState<'ALL' | 'ASSIGNED' | 'CLARIFICATION' | 'HANDOFF'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [inputText, setInputText] = useState('')
   const [mobilePanel, setMobilePanel] = useState<'list' | 'chat' | 'context'>('list')
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const isMobile = () => typeof window !== 'undefined' && window.innerWidth < 1024
+
+  const ownRole: 'DOCTOR' | 'NURSE' | 'ADMIN' =
+    user.role === 'HEALTHCARE_WORKER' ? 'DOCTOR' : user.role === 'FACILITY_ADMIN' ? 'ADMIN' : 'NURSE'
+
+  const buildConversation = useCallback(
+    (c: CaseListItem, prev?: ConversationItem): ConversationItem => ({
+      id: `case-${c.id}`,
+      caseId: c.id,
+      facilityId: c.facility_id,
+      encounterId: c.case_number,
+      patientName: c.patient_name || 'Patient',
+      title: c.chief_concern || 'Clinical encounter',
+      participants: [
+        {
+          name: c.assigned_reviewer_name || 'Unassigned reviewer',
+          role: 'DOCTOR' as const,
+          online: Boolean(c.assigned_reviewer_id),
+        },
+        { name: user.full_name || 'You', role: ownRole, online: true },
+      ],
+      category: deriveCategory(c),
+      priority: derivePriority(c),
+      lastMessage: prev?.lastMessage || c.chief_concern || 'No messages yet.',
+      lastTimestamp: prev?.lastTimestamp || fmt(c.submitted_at || c.created_at),
+      unreadCount: prev?.unreadCount ?? 0,
+      context: prev?.context ?? {
+        status: c.status,
+        assignedNurse: '',
+        assignedDoctor: c.assigned_reviewer_name || 'Unassigned',
+        assignedAsha: '',
+        chiefComplaint: c.chief_concern || 'Not recorded',
+        vitals: { bp: '—', spo2: '—', pulse: '—', temp: '—' },
+        duration: '—',
+        safetyFlag:
+          c.signal_count > 0 ? `${c.signal_count} deterministic safety signal(s) detected` : undefined,
+        pendingClarifications: [],
+        handoffDestination: c.facility_name || undefined,
+        handoffAcknowledged: c.status === 'REFERRED' || c.status === 'CLOSED',
+      },
+      messages: prev?.messages ?? [],
+    }),
+    [ownRole, user.full_name]
+  )
+
+  const loadThread = useCallback(async (caseId: number) => {
+    try {
+      const [history, detail] = await Promise.all([
+        api<ChatHistoryResponse>(`/api/cases/${caseId}/chat`),
+        api<CaseDetail>(`/api/cases/${caseId}`).catch(() => null),
+      ])
+      const messages: Message[] = history.messages.map((m: ChatMessageOut) => ({
+        id: m.public_id,
+        senderId: m.role,
+        senderName: m.role === 'PATIENT' ? 'Patient' : m.role === 'AI' ? 'Sonam AI' : 'Clinical Staff',
+        senderRole: uiRoleFor(m.role),
+        content: m.content,
+        timestamp: fmt(m.created_at),
+        status: 'READ' as const,
+      }))
+      const last = messages[messages.length - 1]
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === `case-${caseId}`
+            ? {
+                ...c,
+                messages,
+                lastMessage: last ? last.content : c.lastMessage,
+                lastTimestamp: last ? last.timestamp : c.lastTimestamp,
+                context: {
+                  ...c.context,
+                  status: history.status,
+                  chiefComplaint: detail?.chief_concern || c.context.chiefComplaint,
+                  vitals: vitalsFrom(detail),
+                  duration: detail?.timeline_text || c.context.duration,
+                  safetyFlag: detail?.safety_signals?.length
+                    ? detail.safety_signals.map((s) => s.label || s.message).join(' · ')
+                    : c.context.safetyFlag,
+                  pendingClarifications: history.questions.filter((q) => !q.satisfied).map((q) => q.text),
+                  handoffAcknowledged:
+                    history.status === 'REFERRED' || history.status === 'CLOSED',
+                },
+              }
+            : c
+        )
+      )
+    } catch {
+      /* transient thread error — keep last known state */
+    }
+  }, [])
+
+  const loadCases = useCallback(async () => {
+    try {
+      const res = await api<CaseListResponse>('/api/cases', { params: { page_size: 50 } })
+      setConversations((prev) => {
+        const byId = new Map(prev.map((c) => [c.id, c]))
+        return res.items.map((c) => buildConversation(c, byId.get(`case-${c.id}`)))
+      })
+      setLoadError(null)
+      setActiveConvId((cur) =>
+        cur && res.items.some((c) => `case-${c.id}` === cur)
+          ? cur
+          : res.items[0]
+          ? `case-${res.items[0].id}`
+          : ''
+      )
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Unable to load conversations')
+    } finally {
+      setLoading(false)
+    }
+  }, [buildConversation])
+
+  useEffect(() => {
+    void loadCases()
+    const t = setInterval(() => void loadCases(), 15000)
+    return () => clearInterval(t)
+  }, [loadCases])
 
   // Privacy: conversations are scoped to the staff member's own organisation.
   // Only SUPER_ADMINS (or staff without a facility yet) see beyond their facility.
@@ -248,6 +250,15 @@ export default function CommunicationCentre() {
   const activeConv: ConversationItem =
     (visibleConversations.find((c) => c.id === activeConvId) ||
       visibleConversations[0]) as ConversationItem
+
+  const activeCaseId = activeConv ? activeConv.caseId : null
+
+  useEffect(() => {
+    if (!activeCaseId) return
+    void loadThread(activeCaseId)
+    const t = setInterval(() => void loadThread(activeCaseId), 10000)
+    return () => clearInterval(t)
+  }, [activeCaseId, loadThread])
 
   const filteredConversations = visibleConversations.filter((c) => {
     if (activeTab === 'ASSIGNED' && c.category !== 'ASSIGNED') return false
@@ -265,43 +276,29 @@ export default function CommunicationCentre() {
     return true
   })
 
-  const handleSendMessage = (e?: React.FormEvent) => {
+  const clarificationCount = visibleConversations.filter((c) => c.category === 'CLARIFICATION').length
+
+  const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
-    if (!inputText.trim() || !activeConv) return
-
-    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    const userRole: 'DOCTOR' | 'NURSE' | 'ASHA' | 'ADMIN' =
-      user.role === 'HEALTHCARE_WORKER' ? 'DOCTOR' : user.role === 'FACILITY_ADMIN' ? 'ADMIN' : 'NURSE'
-
-    const newMsg: Message = {
-      id: `m-${Date.now()}`,
-      senderId: String(user.id),
-      senderName: user.full_name || 'Staff Member',
-      senderRole: userRole,
-      content: inputText.trim(),
-      timestamp: now,
-      status: mode === 'OFFLINE' ? 'SENT' : 'DELIVERED',
+    const target = activeConv
+    const text = inputText.trim()
+    if (!text || !target || sending) return
+    setSending(true)
+    try {
+      await api(`/api/cases/${target.caseId}/reply`, { method: 'POST', body: { message: text } })
+      setInputText('')
+      await loadThread(target.caseId)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not send message')
+    } finally {
+      setSending(false)
     }
-
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === activeConv.id
-          ? {
-              ...c,
-              lastMessage: newMsg.content,
-              lastTimestamp: now,
-              messages: [...c.messages, newMsg],
-            }
-          : c
-      )
-    )
-    setInputText('')
   }
 
   const handleAttachSummary = () => {
     if (!activeConv) return
     setInputText(
-      `[Encounter Summary Attached]: ${activeConv.encounterId} - Vitals: BP ${activeConv.context.vitals.bp}, SpO2 ${activeConv.context.vitals.spo2}, Pulse ${activeConv.context.vitals.pulse}. Chief Concern: ${activeConv.context.chiefComplaint}`
+      `[Encounter Summary]: ${activeConv.encounterId} — Vitals: BP ${activeConv.context.vitals.bp}, SpO2 ${activeConv.context.vitals.spo2}, Pulse ${activeConv.context.vitals.pulse}. Chief concern: ${activeConv.context.chiefComplaint}`
     )
   }
 
@@ -309,32 +306,20 @@ export default function CommunicationCentre() {
     setInputText('Please verify patient oxygen saturation on room air and confirm time of onset.')
   }
 
-  const handleAcknowledgeHandoff = () => {
-    if (!activeConv) return
-    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    const ackMsg: Message = {
-      id: `m-${Date.now()}`,
-      senderId: String(user.id),
-      senderName: user.full_name || 'Medical Officer',
-      senderRole: 'DOCTOR',
-      content: `✅ Clinical Handoff for ${activeConv.encounterId} has been acknowledged and accepted by ${user.full_name}.`,
-      timestamp: now,
-      status: 'READ',
-      isSystemEvent: true,
-      isHandoff: true,
+  const handleAcknowledgeHandoff = async () => {
+    if (!activeConv || sending) return
+    setSending(true)
+    try {
+      await api(`/api/cases/${activeConv.caseId}/reply`, {
+        method: 'POST',
+        body: { message: `✅ Clinical handoff for ${activeConv.encounterId} acknowledged by ${user.full_name}.` },
+      })
+      await loadThread(activeConv.caseId)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not acknowledge handoff')
+    } finally {
+      setSending(false)
     }
-
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === activeConv.id
-          ? {
-              ...c,
-              context: { ...c.context, handoffAcknowledged: true },
-              messages: [...c.messages, ackMsg],
-            }
-          : c
-      )
-    )
   }
 
   return (
@@ -345,12 +330,19 @@ export default function CommunicationCentre() {
           <div className="flex min-w-0 items-center gap-2">
             <WifiOff className="h-4 w-4 shrink-0 text-rose-600" />
             <span className="break-words">
-              Real-time Socket.IO communication is in Offline Queue Mode. Messages are stored locally on this tablet.
+              Live staff communication is in Offline Queue Mode. Messages will sync once connectivity returns.
             </span>
           </div>
           <Link to="/app/hcw/sync-queue" className="shrink-0 underline hover:text-rose-950 font-bold">
             View Sync Queue
           </Link>
+        </div>
+      )}
+
+      {loadError && (
+        <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-800">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600" />
+          <span className="break-words">{loadError}</span>
         </div>
       )}
 
@@ -380,12 +372,17 @@ export default function CommunicationCentre() {
           ))}
         </div>
 
-        {visibleConversations.length === 0 ? (
+        {loading ? (
+          <div className="col-span-1 flex min-h-0 items-center justify-center p-6 text-sm font-semibold text-slate-500 lg:col-span-12">
+            Loading live conversations…
+          </div>
+        ) : visibleConversations.length === 0 ? (
           <div className="col-span-1 flex min-h-0 flex-col items-center justify-center gap-2 p-6 text-center lg:col-span-12">
             <ShieldAlert className="h-8 w-8 text-teal-600" />
-            <p className="text-sm font-bold text-slate-700">No shared conversations available yet.</p>
+            <p className="text-sm font-bold text-slate-700">No conversations available yet.</p>
             <p className="text-xs text-slate-500">
-              Staff chats are visible only to users working in the same organisation.
+              Conversations appear here for every case you can access. Staff chats are visible only to users
+              working in the same organisation.
             </p>
           </div>
         ) : (
@@ -400,7 +397,7 @@ export default function CommunicationCentre() {
                 <span>Staff Conversations</span>
               </h2>
               <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-800">
-                Socket.IO
+                LIVE
               </span>
             </div>
 
@@ -411,7 +408,7 @@ export default function CommunicationCentre() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search ENC-ID or staff..."
+                placeholder="Search case ID or patient..."
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:bg-white focus:outline-none"
               />
             </div>
@@ -438,7 +435,7 @@ export default function CommunicationCentre() {
                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                Clarifications (1)
+                Clarifications ({clarificationCount})
               </button>
               <button
                 type="button"
@@ -565,7 +562,7 @@ export default function CommunicationCentre() {
               </div>
             </div>
 
-            {/* Socket Status Indicator */}
+            {/* Live Status Indicator */}
             <div className="flex shrink-0 items-center gap-2">
               <div
                 className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
@@ -579,7 +576,7 @@ export default function CommunicationCentre() {
                     mode === 'OFFLINE' ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'
                   }`}
                 />
-                <span>{mode === 'OFFLINE' ? 'Queue Local' : 'Socket.IO Online'}</span>
+                <span>{mode === 'OFFLINE' ? 'Queue Local' : 'Live'}</span>
               </div>
             </div>
           </div>
@@ -616,7 +613,13 @@ export default function CommunicationCentre() {
 
           {/* Message Stream */}
           <div className="flex-1 space-y-3 overflow-y-auto p-4 bg-slate-50/30">
-            {activeConv.messages.map((m) => {
+            {activeConv.messages.length === 0 ? (
+              <div className="flex flex-col items-center gap-1 py-10 text-center text-xs text-slate-400">
+                <MessageSquare className="h-5 w-5 text-slate-300" />
+                <span>No messages on this case yet.</span>
+              </div>
+            ) : (
+              activeConv.messages.map((m) => {
               if (m.isSystemEvent) {
                 return (
                   <div key={m.id} className="flex justify-center my-2">
@@ -668,7 +671,8 @@ export default function CommunicationCentre() {
                   </div>
                 </div>
               )
-            })}
+            })
+            )}
           </div>
 
           {/* Composer */}
@@ -681,25 +685,25 @@ export default function CommunicationCentre() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
-                    handleSendMessage()
+                    void handleSendMessage()
                   }
                 }}
-                placeholder="Type real-time clinical note or clarification (Press Enter to Send)..."
+                placeholder="Type a clinical note or reply (Enter to send, Shift+Enter for newline)..."
                 className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-2.5 pr-20 text-xs text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:bg-white focus:outline-none"
               />
 
               <button
                 type="submit"
-                disabled={!inputText.trim()}
+                disabled={!inputText.trim() || sending}
                 className="absolute right-2.5 bottom-3.5 flex items-center gap-1 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-teal-700 disabled:opacity-40 transition"
               >
-                <span>Send</span>
+                <span>{sending ? 'Sending…' : 'Send'}</span>
                 <Send className="h-3 w-3" />
               </button>
             </div>
 
             <div className="mt-1 flex flex-wrap items-center justify-between gap-1 text-[10px] text-slate-400 px-1">
-              <span className="break-words">🔒 Encrypted healthcare staff channel. Audited under clinical review protocol.</span>
+              <span className="break-words">🔒 Sent as a clinical reply on the case record. Audited under clinical review protocol.</span>
               <span>{inputText.length} chars</span>
             </div>
           </form>
@@ -797,7 +801,7 @@ export default function CommunicationCentre() {
             </span>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-slate-500">Destination:</span>
-              <span className="font-semibold text-slate-800">{activeConv.context.handoffDestination}</span>
+              <span className="font-semibold text-slate-800">{activeConv.context.handoffDestination || '—'}</span>
             </div>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-slate-500">Acknowledgment:</span>

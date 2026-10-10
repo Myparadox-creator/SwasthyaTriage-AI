@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
@@ -34,17 +35,16 @@ from schemas.case import (
     SymptomOut,
 )
 from schemas.documents import DocumentOut
-import logging
 from services.audit import AuditAction, record_audit
 from services.exports.excel import sync_patient_to_persistent_workbook
 from services.gemini import ProviderError, ProviderUnavailable, get_provider
 from services.gemini.questions import suggest_questions
 from services.gemini.summary import build_summary_payload, generated_at_now
-
-logger = logging.getLogger(__name__)
 from services.notifications import NotificationType, notify_facility_staff
 from services.safety.service import reevaluate_case
 from services.triage.note import build_triage_note
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cases", tags=["cases"])
 

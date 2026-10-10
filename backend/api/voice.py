@@ -1,20 +1,34 @@
-"""In-app voice sessions — turn-based HTTP telephony (mock-first, no WebSocket)."""
+"""In-app voice sessions.
+
+Two transports are offered:
+
+* A turn-based HTTP API (``/turns`` and ``/turns/stream`` SSE) that transcribes,
+  reasons and replies one turn at a time.
+* A genuinely realtime WebSocket (``.../live``) that streams 16 kHz PCM to the
+  Gemini Live API and streams 24 kHz native audio + transcription straight
+  back, for true full-duplex conversation.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import re
 import uuid
+from contextlib import AsyncExitStack
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from api.chat import _can_converse
 from auth.dependencies import get_current_user
-from database.session import get_db
+from auth.jwt import TokenError, verify_access_token
+from config import settings
+from database.session import SessionLocal, get_db
 from middleware.errors import AppError
 from models import User, VoiceMessage, VoiceSession
 from models.enums import MessageRole, SessionStatus, VoiceSessionMode
@@ -22,11 +36,17 @@ from repositories.cases import get_case_or_403
 from schemas.voice import (
     CreateVoiceSessionRequest,
     VoiceSessionOut,
+    VoiceSpeakRequest,
     VoiceTurnRequest,
     VoiceTurnResponse,
 )
 from services.audit import AuditAction, record_audit
+from services.gemini.client import GeminiClient
+from services.gemini.errors import ProviderError, ProviderUnavailable
+from services.voice import live as live_voice
 from services.voice.agent import AudioUnsupportedError, get_voice_agent
+
+logger = logging.getLogger("swasthyatriage.voice.api")
 
 router = APIRouter(prefix="/api/cases", tags=["voice"])
 
@@ -308,3 +328,297 @@ def complete_voice_session(
     )
     db.commit()
     return session
+
+
+@router.get("/{case_id}/voice/sessions", response_model=list[VoiceSessionOut])
+def list_voice_sessions(
+    case_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Every voice session for a case, newest first, with full transcripts.
+
+    Used by the clinician view so the doctor can read exactly what Sonam asked
+    and what the patient answered.
+    """
+    case = get_case_or_403(db, user, case_id)
+    return db.scalars(
+        select(VoiceSession)
+        .where(VoiceSession.case_id == case.id)
+        .order_by(VoiceSession.created_at.desc())
+    ).all()
+
+
+@router.post("/{case_id}/voice/sessions/{sid}/speak")
+def synthesize_voice_speech(
+    case_id: int,
+    sid: str,
+    payload: VoiceSpeakRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Server-side TTS for the classic (turn-based) voice path.
+
+    Returns raw 24 kHz mono signed 16-bit PCM (``audio/pcm;rate=24000``) so the
+    browser can play agent replies with the Web Audio API instead of relying on
+    the OS ``speechSynthesis`` voice. Falls back transparently on the client if
+    this endpoint is unavailable.
+    """
+    case = get_case_or_403(db, user, case_id)
+    session = _session_or_404(db, case.id, sid)
+
+    if not settings.gemini_enabled:
+        raise AppError(
+            "Server TTS is not configured", status_code=503, code="tts_unavailable"
+        )
+
+    try:
+        audio, mime = GeminiClient().synthesize_speech(
+            payload.text,
+            language=payload.language or session.language,
+        )
+    except (ProviderError, ProviderUnavailable) as exc:
+        logger.warning("Server TTS failed: %s", exc)
+        raise AppError(str(exc), status_code=502, code="tts_failed") from exc
+
+    return Response(content=audio, media_type=mime)
+
+
+def _next_sequence(db: Session, session_id: int) -> int:
+    current = db.scalar(
+        select(func.coalesce(func.max(VoiceMessage.sequence), 0)).where(
+            VoiceMessage.session_id == session_id
+        )
+    )
+    return int(current or 0) + 1
+
+
+@router.websocket("/{case_id}/voice/sessions/{sid}/live")
+async def live_voice_socket(
+    websocket: WebSocket,
+    case_id: int,
+    sid: str,
+    token: str | None = None,
+):
+    """Full-duplex realtime voice session proxied to the Gemini Live API.
+
+    The client sends binary WebSocket frames of 16 kHz mono PCM16 audio; the
+    server streams back binary 24 kHz PCM16 audio plus JSON control/transcript
+    frames.
+    """
+    await websocket.accept()
+
+    if token is None:
+        token = websocket.query_params.get("token")
+
+    if not live_voice.live_available():
+        await websocket.send_json({"type": "error", "error": "live_unavailable"})
+        await websocket.close(code=1011)
+        return
+
+    db = SessionLocal()
+    case = None
+    session: VoiceSession | None = None
+    try:
+        try:
+            payload = verify_access_token(token or "")
+        except TokenError:
+            await websocket.send_json({"type": "error", "error": "unauthorized"})
+            await websocket.close(code=4401)
+            return
+
+        user = db.get(User, int(payload["sub"]))
+        if (
+            user is None
+            or not user.is_active
+            or user.deleted_at is not None
+            or payload.get("role") != user.role.value
+        ):
+            await websocket.send_json({"type": "error", "error": "unauthorized"})
+            await websocket.close(code=4401)
+            return
+
+        try:
+            case = get_case_or_403(db, user, case_id)
+            _can_converse(case)
+            session = _session_or_404(db, case_id, sid)
+        except AppError as exc:
+            await websocket.send_json(
+                {"type": "error", "error": "forbidden", "detail": str(exc)}
+            )
+            await websocket.close(code=4403)
+            return
+
+        language = session.language or (case.language.value if case.language else "en")
+        session.status = SessionStatus.CONNECTING
+        session.error_detail = None
+        db.commit()
+
+        await _run_live_session(websocket, db, case, session, language)
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Live voice session crashed: %s", exc)
+    finally:
+        try:
+            if session is not None:
+                session.status = SessionStatus.COMPLETED
+                session.ended_at = datetime.now().astimezone()
+                db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
+        db.close()
+        try:
+            await websocket.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+async def _run_live_session(
+    websocket: WebSocket, db: Session, case, session: VoiceSession, language: str
+) -> None:
+    from google.genai import types
+
+    client = live_voice.get_live_client()
+    config = live_voice.build_live_config(language, case.case_number, case.chief_concern)
+    buffers: dict[str, list[str]] = {"user": [], "ai": []}
+
+    def flush_turn() -> None:
+        user_text = "".join(buffers["user"]).strip()
+        ai_text = "".join(buffers["ai"]).strip()
+        buffers["user"].clear()
+        buffers["ai"].clear()
+        if not user_text and not ai_text:
+            return
+        seq = _next_sequence(db, session.id)
+        if user_text:
+            db.add(
+                VoiceMessage(
+                    session_id=session.id,
+                    sequence=seq,
+                    role=MessageRole.PATIENT,
+                    content=user_text[:4000],
+                    language=language,
+                    had_audio=True,
+                )
+            )
+            seq += 1
+        if ai_text:
+            db.add(
+                VoiceMessage(
+                    session_id=session.id,
+                    sequence=seq,
+                    role=MessageRole.AI,
+                    content=ai_text[:4000],
+                    language=language,
+                    had_audio=True,
+                )
+            )
+        session.status = SessionStatus.LISTENING
+        db.commit()
+
+    async with AsyncExitStack() as stack:
+        stream = None
+        active_model: str | None = None
+        for model in live_voice.live_models_to_try():
+            try:
+                stream = await stack.enter_async_context(
+                    client.aio.live.connect(model=model, config=config)
+                )
+                active_model = model
+                break
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Gemini Live connect failed for %s: %s", model, exc)
+        if stream is None:
+            await websocket.send_json({"type": "error", "error": "live_connect_failed"})
+            return
+
+        await websocket.send_json({"type": "ready", "model": active_model, "language": language})
+        session.status = SessionStatus.LISTENING
+        db.commit()
+
+        await stream.send_client_content(
+            turns=types.Content(
+                role="user",
+                parts=[types.Part(text="[The call has connected. Greet the patient and begin.]")],
+            ),
+            turn_complete=True,
+        )
+
+        async def pump_client() -> None:
+            try:
+                while True:
+                    raw = await websocket.receive()
+                    if raw.get("type") == "websocket.disconnect":
+                        break
+                    chunk = raw.get("bytes")
+                    if chunk:
+                        await stream.send_realtime_input(
+                            audio=types.Blob(data=chunk, mime_type=live_voice.INPUT_MIME)
+                        )
+                        continue
+                    text = raw.get("text")
+                    if not text:
+                        continue
+                    try:
+                        control = json.loads(text)
+                    except json.JSONDecodeError:
+                        continue
+                    if control.get("type") in ("close", "end"):
+                        break
+            except WebSocketDisconnect:
+                pass
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Live client pump ended: %s", exc)
+
+        async def pump_gemini() -> None:
+            async for message in stream.receive():
+                content = getattr(message, "server_content", None)
+                if content is None:
+                    continue
+                if getattr(content, "interrupted", False):
+                    await websocket.send_json({"type": "interrupted"})
+                input_tr = getattr(content, "input_transcription", None)
+                if input_tr is not None and getattr(input_tr, "text", None):
+                    buffers["user"].append(input_tr.text)
+                    await websocket.send_json({"type": "input", "text": input_tr.text})
+                output_tr = getattr(content, "output_transcription", None)
+                if output_tr is not None and getattr(output_tr, "text", None):
+                    buffers["ai"].append(output_tr.text)
+                    await websocket.send_json({"type": "output", "text": output_tr.text})
+                model_turn = getattr(content, "model_turn", None)
+                if model_turn is not None:
+                    for part in model_turn.parts or []:
+                        inline = getattr(part, "inline_data", None)
+                        data = getattr(inline, "data", None)
+                        if data:
+                            await websocket.send_bytes(data)
+                if getattr(content, "turn_complete", False):
+                    flush_turn()
+                    await websocket.send_json({"type": "turn_complete"})
+
+        client_task = asyncio.create_task(pump_client())
+        server_task = asyncio.create_task(pump_gemini())
+        _, pending = await asyncio.wait(
+            {client_task, server_task}, return_when=asyncio.FIRST_COMPLETED
+        )
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+
+        flush_turn()
+
+    try:
+        await websocket.send_json({"type": "closed"})
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        transcript = "\n".join(
+            f"{message.role.value}: {message.content}"
+            for message in sorted(session.messages, key=lambda item: item.sequence)
+        )
+    except Exception:  # noqa: BLE001
+        transcript = ""
+    live_voice.finalize_live_session(db, case, transcript=transcript, language=language)
+    db.commit()
