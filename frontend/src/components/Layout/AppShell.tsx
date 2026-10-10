@@ -44,6 +44,7 @@ export default function AppShell() {
         { to: '/app/patient/callback', label: 'Request Phone Call', icon: PhoneCall },
         { to: '/app/patient/pharmacies', label: 'Clinics, Hospitals & Stores', icon: MapPin },
         { to: '/app/patient/uploads', label: 'Upload Reports', icon: Upload },
+        { to: '/app/patient/privacy', label: 'Privacy & My Data', icon: ShieldCheck },
       ]
     }
 

@@ -101,6 +101,15 @@ class Settings(BaseSettings):
     # Admin alerts: notified whenever a user wants to talk to the Sonam voice agent.
     admin_notification_email: str = "abhisheksahu1018@gmail.com"
 
+    # Privacy & data retention. These back the retention policy surfaced at
+    # GET /api/privacy/policy and enforced by the purge routine.
+    email_log_retention_days: int = 90
+    auth_token_grace_days: int = 30
+    # Set > 0 to auto-purge raw call/voice transcripts older than N days.
+    # 0 keeps transcripts for the life of the case (they are still scrubbed on
+    # erasure and redacted in logs).
+    voice_transcript_retention_days: int = 0
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

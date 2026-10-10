@@ -20,6 +20,7 @@ import PatientUploads from './pages/app/patient/PatientUploads'
 import PatientVoiceAssessment from './pages/app/patient/PatientVoiceAssessment'
 import PatientLiveVoice from './pages/app/patient/PatientLiveVoice'
 import VoiceCallbackPage from './pages/app/patient/VoiceCallbackPage'
+import PrivacyCenterPage from './pages/app/patient/PrivacyCenterPage'
 import HcwDashboard from './pages/app/hcw/HcwDashboard'
 import PatientQueue from './pages/app/hcw/PatientQueue'
 import CaseReview from './pages/app/hcw/CaseReview'
@@ -80,6 +81,7 @@ export default function App() {
                 <Route path="voice" element={<PatientVoiceAssessment />} />
         <Route path="voice/live" element={<PatientLiveVoice />} />
                 <Route path="callback" element={<VoiceCallbackPage />} />
+                <Route path="privacy" element={<PrivacyCenterPage />} />
                 <Route path="pharmacies" element={<NearbyPharmaciesPage />} />
               </Route>
 

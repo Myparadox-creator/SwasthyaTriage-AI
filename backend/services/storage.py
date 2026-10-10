@@ -177,3 +177,24 @@ def read_upload_bytes(key: str) -> bytes:
         return resolve_storage_path(key).read_bytes()
     return client.get_object(Bucket=settings.s3_bucket, Key=_object_key(key))["Body"].read()
 
+
+def delete_upload(key: str) -> bool:
+    """Best-effort delete of a stored object. Returns True when it was removed.
+
+    Used by the right-to-erasure flow to remove uploaded documents from
+    whichever backend is active. Never raises: a storage hiccup must not abort
+    erasure of the database record.
+    """
+    if not key:
+        return False
+    client = _s3_client()
+    try:
+        if client is not None:
+            client.delete_object(Bucket=settings.s3_bucket, Key=_object_key(key))
+            return True
+        resolve_storage_path(key).unlink(missing_ok=True)
+        return True
+    except Exception:  # noqa: BLE001 - erasure continues regardless
+        logger.warning("Could not delete a stored object during erasure")
+        return False
+

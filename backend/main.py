@@ -30,6 +30,7 @@ from api.facilities import router as facilities_router
 from api.followups import router as followups_router
 from api.notifications import router as notifications_router
 from api.patients import router as patients_router
+from api.privacy import router as privacy_router
 from api.referrals import router as referrals_router
 from api.reviews import router as reviews_router
 from api.safety import router as safety_router
@@ -39,11 +40,17 @@ from api.voice import router as voice_router
 from config import settings
 from middleware.errors import install_error_handlers
 from middleware.ratelimit import limiter
+from services.privacy.logging_filter import install_log_redaction
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
+
+# Strip phone numbers / emails / Aadhaar from every log record before it is
+# emitted, so PII cannot leak through log files regardless of call site.
+install_log_redaction()
+
 logger = logging.getLogger("swasthyatriage")
 
 app = FastAPI(
@@ -117,6 +124,7 @@ app.include_router(facilities_router)
 app.include_router(email_admin_router)
 app.include_router(ai_clinical_router)
 app.include_router(ai_evaluation_router)
+app.include_router(privacy_router)
 
 
 @app.get("/api/health")

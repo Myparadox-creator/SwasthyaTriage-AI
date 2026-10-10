@@ -755,3 +755,49 @@ export interface CallbackListResponse {
   items: CallbackRequestOut[]
   total: number
 }
+
+export type ConsentStatus = 'GRANTED' | 'REVOKED' | 'WITHDRAWN'
+
+export interface ConsentOut {
+  id: number
+  case_id: number | null
+  status: ConsentStatus
+  consent_text_version: string
+  language: string
+  recorded_at: string
+}
+
+export interface ConsentListResponse {
+  items: ConsentOut[]
+  total: number
+}
+
+export interface ConsentRevokeResponse {
+  id: number
+  status: ConsentStatus
+  message: string
+}
+
+export interface DataErasureResponse {
+  ok: boolean
+  message: string
+  details: {
+    patient_id: number
+    user_anonymised: boolean
+    cases_scrubbed: number
+    chat_messages_deleted: number
+    voice_messages_deleted: number
+    call_transcripts_deleted: number
+    documents_removed: number
+    consents_revoked: number
+    text_fields_redacted: number
+  }
+}
+
+export interface PrivacyPolicyResponse {
+  environment: string
+  pii_redaction: { summary: string; patterns: string[] }
+  retention: Record<string, { rule: string; retention_days?: number | null; grace_days?: number }>
+  rights: Record<string, string>
+  controllers: { app: string; contact: string }
+}

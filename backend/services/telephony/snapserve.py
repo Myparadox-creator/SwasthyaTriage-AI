@@ -314,7 +314,11 @@ class SnapServeProvider(TelephonyProvider):
                 "phone_masked": f"****{target[-4:]}" if len(target) >= 4 else "****",
             },
         )
-        logger.info("SnapServe outbound call %s placed to %s", call.external_call_id, target)
+        logger.info(
+            "SnapServe outbound call %s placed to ****%s",
+            call.external_call_id,
+            target[-4:] if len(target) >= 4 else "",
+        )
         return call
 
     def start_call(self, *, db: Any, call: TeleCall) -> TeleCall:
