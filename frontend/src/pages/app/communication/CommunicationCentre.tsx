@@ -31,6 +31,7 @@ interface Message {
 
 interface ConversationItem {
   id: string
+  facilityId: number
   encounterId: string
   patientName: string
   title: string
@@ -59,6 +60,7 @@ interface ConversationItem {
 const INITIAL_CONVERSATIONS: ConversationItem[] = [
   {
     id: 'conv-1042',
+    facilityId: 1,
     encounterId: 'ENC-DEMO-1042',
     patientName: 'Subhasree Mohapatra (28 F)',
     title: 'Post-Intake Cardiac Distress & Chest Radiance',
@@ -140,6 +142,7 @@ const INITIAL_CONVERSATIONS: ConversationItem[] = [
   },
   {
     id: 'conv-1043',
+    facilityId: 1,
     encounterId: 'ENC-DEMO-1043',
     patientName: 'Kailash Behera (62 M)',
     title: 'Persistent Febrile Illness & Lab OCR Review',
@@ -179,6 +182,7 @@ const INITIAL_CONVERSATIONS: ConversationItem[] = [
   },
   {
     id: 'conv-1044',
+    facilityId: 1,
     encounterId: 'ENC-DEMO-1044',
     patientName: 'Anita Sahoo (34 F)',
     title: 'Pediatric Acute Wheeze Consultation',
@@ -226,10 +230,22 @@ export default function CommunicationCentre() {
   const [activeTab, setActiveTab] = useState<'ALL' | 'ASSIGNED' | 'CLARIFICATION' | 'HANDOFF'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [inputText, setInputText] = useState('')
+  const [mobilePanel, setMobilePanel] = useState<'list' | 'chat' | 'context'>('list')
 
-  const activeConv = conversations.find((c) => c.id === activeConvId) || conversations[0]
+  const isMobile = () => typeof window !== 'undefined' && window.innerWidth < 1024
 
-  const filteredConversations = conversations.filter((c) => {
+  // Privacy: conversations are scoped to the staff member's own organisation.
+  // Only SUPER_ADMINS (or staff without a facility yet) see beyond their facility.
+  const visibleConversations =
+    user.role === 'SUPER_ADMIN' || !user.facility_id
+      ? conversations
+      : conversations.filter((c) => c.facilityId === user.facility_id)
+
+  const activeConv: ConversationItem =
+    (visibleConversations.find((c) => c.id === activeConvId) ||
+      visibleConversations[0]) as ConversationItem
+
+  const filteredConversations = visibleConversations.filter((c) => {
     if (activeTab === 'ASSIGNED' && c.category !== 'ASSIGNED') return false
     if (activeTab === 'CLARIFICATION' && c.category !== 'CLARIFICATION') return false
     if (activeTab === 'HANDOFF' && c.category !== 'HANDOFF') return false
@@ -247,7 +263,7 @@ export default function CommunicationCentre() {
 
   const handleSendMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
-    if (!inputText.trim()) return
+    if (!inputText.trim() || !activeConv) return
 
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     const userRole: 'DOCTOR' | 'NURSE' | 'ASHA' | 'ADMIN' =
@@ -279,6 +295,7 @@ export default function CommunicationCentre() {
   }
 
   const handleAttachSummary = () => {
+    if (!activeConv) return
     setInputText(
       `[Encounter Summary Attached]: ${activeConv.encounterId} - Vitals: BP ${activeConv.context.vitals.bp}, SpO2 ${activeConv.context.vitals.spo2}, Pulse ${activeConv.context.vitals.pulse}. Chief Concern: ${activeConv.context.chiefComplaint}`
     )
@@ -289,6 +306,7 @@ export default function CommunicationCentre() {
   }
 
   const handleAcknowledgeHandoff = () => {
+    if (!activeConv) return
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     const ackMsg: Message = {
       id: `m-${Date.now()}`,
@@ -333,9 +351,43 @@ export default function CommunicationCentre() {
       )}
 
       {/* Main 3-Panel Layout */}
-      <div className="grid flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-12 lg:overflow-hidden">
+      <div className="grid flex-1 grid-cols-1 grid-rows-[auto_1fr] overflow-hidden lg:grid-cols-12 lg:grid-rows-1">
+        {/* Mobile single-panel switcher */}
+        <div className="col-span-1 flex items-center gap-1 border-b border-slate-200 bg-white px-3 py-2 lg:hidden">
+          {(
+            [
+              { key: 'list', label: 'Conversations' },
+              { key: 'chat', label: 'Chat' },
+              { key: 'context', label: 'Context' },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setMobilePanel(t.key)}
+              className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-bold whitespace-nowrap transition ${
+                mobilePanel === t.key
+                  ? 'bg-teal-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {visibleConversations.length === 0 ? (
+          <div className="col-span-1 flex min-h-0 flex-col items-center justify-center gap-2 p-6 text-center lg:col-span-12">
+            <ShieldAlert className="h-8 w-8 text-teal-600" />
+            <p className="text-sm font-bold text-slate-700">No shared conversations available yet.</p>
+            <p className="text-xs text-slate-500">
+              Staff chats are visible only to users working in the same organisation.
+            </p>
+          </div>
+        ) : (
+          <>
         {/* LEFT PANEL: Conversations List (col-span-3) */}
-        <div className="flex min-h-[45vh] flex-col border-b border-slate-200 bg-slate-50/50 lg:col-span-4 lg:min-h-0 lg:border-b-0 lg:border-r xl:col-span-3 overflow-hidden">
+        <div className={`${mobilePanel === 'list' ? 'flex' : 'hidden'} min-h-0 flex-col overflow-hidden border-r-0 border-b border-slate-200 bg-slate-50/50 lg:flex lg:col-span-4 lg:border-r lg:border-b-0 xl:col-span-3`}>
           {/* Header & Search */}
           <div className="p-3.5 border-b border-slate-200 bg-white">
             <div className="flex items-center justify-between">
@@ -411,13 +463,22 @@ export default function CommunicationCentre() {
 
           {/* Conversations List */}
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-            {filteredConversations.map((c) => {
-              const isSelected = c.id === activeConv.id
+            {filteredConversations.length === 0 ? (
+              <div className="flex flex-col items-center gap-1 p-6 text-center text-xs text-slate-400">
+                <Search className="h-5 w-5 text-slate-300" />
+                <span>No conversations from your organisation match.</span>
+              </div>
+            ) : (
+              filteredConversations.map((c) => {
+              const isSelected = c.id === activeConv?.id
               return (
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => setActiveConvId(c.id)}
+                  onClick={() => {
+                    setActiveConvId(c.id)
+                    if (isMobile()) setMobilePanel('chat')
+                  }}
                   className={`w-full text-left p-3 transition flex flex-col gap-1.5 ${
                     isSelected ? 'bg-teal-50/80 border-l-4 border-l-teal-600 shadow-xs' : 'hover:bg-slate-100/60'
                   }`}
@@ -466,12 +527,13 @@ export default function CommunicationCentre() {
                   </div>
                 </button>
               )
-            })}
+              })
+            )}
           </div>
         </div>
 
         {/* MIDDLE PANEL: Active Conversation & Composer (col-span-5 / 6) */}
-        <div className="flex min-h-[60vh] flex-col bg-white lg:col-span-5 lg:min-h-0 lg:border-r lg:border-slate-200 xl:col-span-6 overflow-hidden">
+        <div className={`${mobilePanel === 'chat' ? 'flex' : 'hidden'} min-h-0 flex-col overflow-hidden bg-white lg:flex lg:col-span-5 lg:border-r lg:border-slate-200 xl:col-span-6`}>
           {/* Header */}
           <div className="p-3.5 border-b border-slate-200 bg-white flex flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -640,7 +702,7 @@ export default function CommunicationCentre() {
         </div>
 
         {/* RIGHT PANEL: Encounter Context & Provenance (col-span-4 / 3) */}
-        <div className="flex flex-col border-t border-slate-200 bg-slate-50/70 p-4 lg:col-span-3 lg:border-t-0 xl:col-span-3 lg:overflow-y-auto space-y-4">
+        <div className={`${mobilePanel === 'context' ? 'flex' : 'hidden'} min-h-0 flex-col overflow-y-auto border-t border-slate-200 bg-slate-50/70 p-4 lg:flex lg:col-span-3 lg:border-t-0 xl:col-span-3 space-y-4`}>
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Encounter Clinical Context
@@ -667,7 +729,7 @@ export default function CommunicationCentre() {
                 <span>Deterministic Safety Alert</span>
               </div>
               <p className="mt-1 text-[11px] leading-normal text-rose-700">
-                {activeConv.context.safetyFlag}
+                {activeConv?.context.safetyFlag}
               </p>
             </div>
           )}
@@ -745,6 +807,8 @@ export default function CommunicationCentre() {
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   )

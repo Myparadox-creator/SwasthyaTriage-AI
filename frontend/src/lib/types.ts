@@ -424,6 +424,7 @@ export interface VoiceTurnResponse {
   added_measurement: boolean
   provider: string
   diagnostics?: Record<string, any>
+  transcript?: string | null
 }
 
 export interface FacilityOut {

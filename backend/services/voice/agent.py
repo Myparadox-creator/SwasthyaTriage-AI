@@ -214,6 +214,7 @@ class GeminiVoiceAgent(VoiceAgent):
 
         user_transcript: str | None = None
         effective_text = (user_text or "").strip()
+        lang = case.language.value if case.language else "hi"
 
         # Critical Safety Directive: Never delay emergency escalation while waiting for an external LLM
         if _is_emergency_text(effective_text):
@@ -234,7 +235,10 @@ class GeminiVoiceAgent(VoiceAgent):
             try:
                 raw_bytes = base64.b64decode(audio_b64)
                 transcribed = self._gemini.transcribe_audio(
-                    raw_bytes, mime_type=audio_mime or "audio/webm", is_interactive=True
+                    raw_bytes,
+                    mime_type=audio_mime or "audio/webm",
+                    is_interactive=True,
+                    language=lang,
                 )
                 if transcribed:
                     user_transcript = transcribed
@@ -261,7 +265,6 @@ class GeminiVoiceAgent(VoiceAgent):
                 "existing_measurements": [f"{m.name}: {m.value}{m.unit}" for m in case.measurements],
                 "timeline": case.timeline_text,
             }
-            lang = case.language.value if case.language else "hi"
             res = self._gemini.triage_voice_turn(
                 user_text=effective_text,
                 language=lang,

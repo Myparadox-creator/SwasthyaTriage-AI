@@ -194,6 +194,18 @@ SwasthyaFlow AI includes a production-grade transactional email subsystem suppor
 
 ---
 
+## ⏰ Time-Aware Clinical Greetings & Localization
+
+SwasthyaFlow AI features real-time, time-synchronized greeting logic across patient and healthcare provider portals:
+- **Time Periods:**
+  - `05:00 – 11:59`: **Good morning** / **शुभ प्रभात** / **ଶୁଭ ସକାଳ**
+  - `12:00 – 16:59`: **Good afternoon** / **शुभ दोपहर** / **ଶୁଭ ଅପରାହ୍ନ** (e.g. 1:52 PM displays "Good afternoon")
+  - `17:00 – 20:59`: **Good evening** / **शुभ संध्या** / **ଶୁଭ ସନ୍ଧ୍ୟା**
+  - `21:00 – 04:59`: **Good night** / **शुभ रात्रि** / **ଶୁଭ ରାତ୍ରି**
+- **Dynamic Live Updates:** Automatically updates in the background every 30 seconds and synchronizes across English, Hindi, and Odia locales without requiring manual page reloads.
+
+---
+
 ## 📜 Clinical Disclaimer
 *SwasthyaFlow AI is an AI-assisted clinical information structuring and triage decision-support prototype developed for public healthcare demonstration. Qualified healthcare professionals lead, evaluate, and hold final decision authority. AI does not independently diagnose diseases or prescribe medication dosages.*
 

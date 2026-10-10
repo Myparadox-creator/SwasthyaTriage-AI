@@ -14,6 +14,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { useAuthStore } from '../../../stores/auth'
+import { useTranslation } from 'react-i18next'
 import { api } from '../../../lib/api'
 import { indianGreeting } from '../../../lib/time'
 import type { CaseListResponse, CaseStatus, Priority } from '../../../lib/types'
@@ -40,8 +41,21 @@ export default function PatientDashboard() {
   const [cases, setCases] = useState<CaseListResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const { i18n } = useTranslation()
   const [error, setError] = useState<string | null>(null)
-  const [greeting] = useState(() => indianGreeting())
+  const [greeting, setGreeting] = useState(() => indianGreeting(new Date(), i18n?.language))
+
+  useEffect(() => {
+    // Keep greeting fresh on mount and when language changes
+    setGreeting(indianGreeting(new Date(), i18n?.language))
+
+    // Re-check every 30 seconds so morning/afternoon/evening transitions happen automatically
+    const timer = setInterval(() => {
+      setGreeting(indianGreeting(new Date(), i18n?.language))
+    }, 30000)
+
+    return () => clearInterval(timer)
+  }, [i18n?.language])
 
   useEffect(() => {
     api<CaseListResponse>('/api/cases', { params: { page_size: 15 } })

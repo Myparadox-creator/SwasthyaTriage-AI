@@ -149,6 +149,7 @@ def send_voice_turn(
         added_measurement=turn.added_measurement,
         provider=session.provider,
         diagnostics=turn.diagnostics,
+        transcript=turn.user_transcript,
     )
 
 
@@ -260,6 +261,7 @@ def stream_voice_turn(
             "provider": session.provider,
             "is_emergency": turn.is_emergency,
             "diagnostics": turn.diagnostics,
+            "transcript": turn.user_transcript,
         }
         yield f"data: {json.dumps(completion, ensure_ascii=False)}\n\n"
 

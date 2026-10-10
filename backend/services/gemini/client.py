@@ -284,6 +284,7 @@ class GeminiClient:
         audio_bytes: bytes,
         mime_type: str = "audio/webm",
         is_interactive: bool = True,
+        language: str | None = None,
     ) -> str:
         """Transcribe speech audio bytes using Gemini multimodal audio understanding."""
         if is_circuit_open():
@@ -294,8 +295,14 @@ class GeminiClient:
         from google.genai import types
 
         part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
+        lang_hint = {
+            "hi": "Hindi",
+            "od": "Odia",
+            "en": "English",
+        }.get((language or "").lower(), "Hindi, Odia, or English")
         prompt = (
-            "Transcribe the spoken audio verbatim in its original language (Hindi, Odia, English, etc.). "
+            f"Transcribe the spoken audio verbatim. The patient is speaking {lang_hint} "
+            "(code-switching between these languages is common). "
             "Return ONLY the plain transcript text without commentary, quotes, or metadata."
         )
         client = self._get_client(is_interactive=is_interactive)
