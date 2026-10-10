@@ -13,9 +13,24 @@
 [![Google Gemini](https://img.shields.io/badge/Google_Gemini-2.5%20%2F%203.0_Flash-8E75C2?style=for-the-badge&logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
 [![Email Providers](https://img.shields.io/badge/Transactional_Email-Gmail_SMTP%20%7C%20Resend-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](https://resend.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![Live Deployment](https://img.shields.io/badge/Production_Live-swasthyatriage--ai--azure.vercel.app-0070F3?style=for-the-badge&logo=vercel&logoColor=white)](https://swasthyatriage-ai-azure.vercel.app)
 
 *Developed for Primary Healthcare Centers (PHCs), Community Health Centers (CHCs), and District Headquarters Hospitals (DHHs).*  
 *Aligned with Odisha Public Healthcare, Ayushman Bharat Digital Mission (ABDM), and BPUT HealthTech Innovation.*
+
+🌐 **Production Application**: [https://swasthyatriage-ai-azure.vercel.app](https://swasthyatriage-ai-azure.vercel.app)
+
+---
+
+### 📚 Master Architectural Documentation
+| Document | File Link | Focus Area |
+|---|---|---|
+| **Product Requirements Document (PRD)** | [PRD.md](file:///e:/New%20folder%20(2)/BPUT%20PROJECT/PRD.md) | Vision, Personas, Functional Scope, Emergency Escalation, KPIs |
+| **Technical Requirements Document (TRD)** | [TRD.md](file:///e:/New%20folder%20(2)/BPUT%20PROJECT/TRD.md) | FastAPI, React 19, VAD Audio Pipeline, Telephony Architecture |
+| **Application Flow & State Machines** | [APP_FLOW.md](file:///e:/New%20folder%20(2)/BPUT%20PROJECT/APP_FLOW.md) | User Journeys, Voice FSM, Case Lifecycle FSM, Telephony FSM |
+| **UI/UX Design Brief & Tokens** | [UIUX_DESIGN_BRIEF.md](file:///e:/New%20folder%20(2)/BPUT%20PROJECT/UIUX_DESIGN_BRIEF.md) | Color Tokens, Indian Typography, Voice UI Micro-animations |
+| **Backend Database Schema** | [BACKEND_SCHEMA.md](file:///e:/New%20folder%20(2)/BPUT%20PROJECT/BACKEND_SCHEMA.md) | PostgreSQL ERD, Tables, Constraints, Indexes, Enums, Pydantic DTOs |
+| **Implementation & Verification Plan** | [IMPLEMENTATION_PLAN.md](file:///e:/New%20folder%20(2)/BPUT%20PROJECT/IMPLEMENTATION_PLAN.md) | Milestones, Incident Resolutions, Quality Assurance Matrix |
 
 </div>
 
@@ -23,6 +38,8 @@
 
 ## 📋 Table of Contents
 - [Executive Overview](#-executive-overview)
+- [Master Documentation Links](#-master-architectural-documentation)
+- [Sonam AI Voice Assistant & Multimodal Intake](#-sonam-ai-voice-assistant--multimodal-intake)
 - [The Healthcare Problem & Our Solution](#-the-healthcare-problem--our-solution)
 - [Core Architecture & System Diagrams](#-core-architecture--system-diagrams)
   - [1. High-Level System Architecture](#1-high-level-system-architecture)
@@ -78,6 +95,20 @@ In peripheral public health facilities across India (such as Sub-Centres, PHCs, 
 > **Clinical Operating Principle**:  
 > *AI assists and structures. Qualified healthcare professionals decide.*  
 > SwasthyaFlow AI is non-diagnostic by design and does not replace registered medical practitioners.
+
+---
+
+## 🎙️ Sonam AI Voice Assistant & Multimodal Intake
+
+**Sonam AI** is SwasthyaFlow AI's empathetic, multilingual clinical intake assistant designed for rural and semi-urban patients:
+
+- **Natural Speech in Indian Dialects**: Full natural conversation support in **Odia (`od`)**, **Hindi (`hi`)**, and **English (`en`)**.
+- **Voice Activity Detection (VAD)**: Dynamic Web Audio API RMS monitoring with automated 1.4-second silence detection for effortless turn-taking.
+- **Barge-In Affordance**: Patients can speak at any time during Sonam's response; the audio stream cuts off instantly to prioritize the patient.
+- **Visual Symptom Extraction**: Real-time extraction pills that catalog fever duration, pain scales, vitals, and chief complaints dynamically.
+- **Direct Physician Queue Handoff**: Dedicated **"Send to Doctor Now"** button forwards structured intake summaries directly to the Medical Officer's review queue (`POST /api/cases/{caseId}/submit`).
+- **Outbound Tele-Calling & Callback Automation**: Integrated patient callback scheduler with backend SnapServe and VideoSDK telephony integrations for dial-up phone follow-up.
+- **Emergency Safety Net**: Instant visual and audio escalation to national ambulances (**112** / **108**) and hospital emergency desk (**6370659934**) whenever acute red flags are detected.
 
 ---
 
